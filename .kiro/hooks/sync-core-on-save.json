@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Sync OrigamiVerse Core to apps",
+      "trigger": "PostFileSave",
+      "description": "Copies shared-core addon into apps/* whenever a core file is saved",
+      "matcher": "shared-core[\\\\/]addons[\\\\/]origamiverse_core[\\\\/].*\\.(gd|gdshader)$",
+      "action": {
+        "type": "command",
+        "command": "python tools/sync_core.py"
+      }
+    }
+  ]
+}

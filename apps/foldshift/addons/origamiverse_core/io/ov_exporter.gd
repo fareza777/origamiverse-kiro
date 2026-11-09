@@ -84,7 +84,8 @@ static func glb_bytes(corners: PackedVector3Array, front: Color, back: Color, na
 static func obj_text(corners: PackedVector3Array, mtl_name: String = "paper.mtl") -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	lines.append("# Exported by %s" % OVCore.CREATOR)
-	lines.append("mtllib %s" % mtl_name)
+	if mtl_name != "":
+		lines.append("mtllib %s" % mtl_name)
 	lines.append("o Origami")
 	for p in corners:
 		lines.append("v %.6f %.6f %.6f" % [p.x, p.y, p.z])

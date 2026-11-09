@@ -11,6 +11,8 @@ var crease_compliance: float = 30.0   ## soft relative to bars so facets stay un
 var facet_compliance: float = 0.6
 var bar_compliance: float = 0.0
 var max_step: float = 0.05         ## max displacement per substep (stability guard)
+var max_angle_step: float = 0.08   ## max crease correction per iteration, radians
+var bar_passes: int = 2            ## bar projections per substep (after the hinges)
 
 var positions: PackedVector3Array = PackedVector3Array()
 var velocities: PackedVector3Array = PackedVector3Array()
@@ -35,7 +37,10 @@ var hinge_last: PackedFloat32Array = PackedFloat32Array()
 var hinge_scale: PackedFloat32Array = PackedFloat32Array()
 
 var strain: float = 0.0
+var jacobi_relax: float = 1.5     ## over-relaxation for the averaged crease corrections
 var _prev: PackedVector3Array = PackedVector3Array()
+var _delta: PackedVector3Array = PackedVector3Array()
+var _count: PackedInt32Array = PackedInt32Array()
 
 
 func setup(document: OVFoldDocument, pin_face: int = -1) -> Dictionary:
@@ -49,6 +54,8 @@ func setup(document: OVFoldDocument, pin_face: int = -1) -> Dictionary:
 	var n: int = positions.size()
 	velocities = PackedVector3Array()
 	velocities.resize(n)
+	_delta.resize(n)
+	_count.resize(n)
 	inv_mass = PackedFloat32Array()
 	inv_mass.resize(n)
 	inv_mass.fill(1.0)
@@ -138,24 +145,10 @@ func step(frame_dt: float = 1.0 / 60.0) -> void:
 				if dv.length_squared() > max_step * max_step:
 					dv = dv.normalized() * max_step
 				positions[i] += dv
-		# Bars.
-		for k in bc:
-			var ia: int = bar_a[k]
-			var ib: int = bar_b[k]
-			var wa: float = inv_mass[ia]
-			var wb: float = inv_mass[ib]
-			var wsum: float = wa + wb
-			if wsum <= 0.0:
-				continue
-			var delta: Vector3 = positions[ib] - positions[ia]
-			var len: float = delta.length()
-			if len < 1e-9:
-				continue
-			var c: float = len - bar_rest[k]
-			var corr: Vector3 = delta * (c / (len * (wsum + bar_compliance)))
-			positions[ia] += corr * wa
-			positions[ib] -= corr * wb
-		# Hinges.
+		# Hinges first (Jacobi: every crease reads the same state, like Origami Simulator's parallel force pass),
+		# then bars, so the paper stays inextensible after every substep.
+		_delta.fill(Vector3.ZERO)
+		_count.fill(0)
 		for k in hc:
 			var ia: int = hinge_a[k]
 			var ib: int = hinge_b[k]
@@ -178,6 +171,9 @@ func step(frame_dt: float = 1.0 / 60.0) -> void:
 				continue
 			var n1: Vector3 = m1 / l1
 			var n2: Vector3 = m2 / l2
+			# Sliver triangles (wing height tiny vs. the hinge) give huge gradients; skip them this step.
+			if l1 < el2 * 0.02 or l2 < el2 * 0.02:
+				continue
 			var theta: float = atan2(n2.cross(n1).dot(e / el), clampf(n1.dot(n2), -1.0, 1.0))
 			var last: float = hinge_last[k]
 			while theta - last > PI:
@@ -185,7 +181,8 @@ func step(frame_dt: float = 1.0 / 60.0) -> void:
 			while theta - last < -PI:
 				theta += TAU
 			var target: float = clampf(hinge_full[k] * pct * hinge_scale[k], -limit, limit)
-			var cval: float = theta - target
+			# Limit the correction per iteration so dense patterns approach their pose instead of snapping.
+			var cval: float = clampf(theta - target, -max_angle_step, max_angle_step)
 			var gc: Vector3 = n1 * (el / l1)      # n1 / h1 with h1 = l1 / el
 			var gd: Vector3 = n2 * (el / l2)
 			var s1: float = (pc - pa).dot(e) / el2
@@ -201,16 +198,44 @@ func step(frame_dt: float = 1.0 / 60.0) -> void:
 			if denom < 1e-12:
 				continue
 			var lam: float = -cval / denom
-			positions[ia] += ga * (lam * wa)
-			positions[ib] += gb * (lam * wb)
-			positions[ic] += gc * (lam * wc)
-			positions[id] += gd * (lam * wd)
+			_delta[ia] += ga * (lam * wa)
+			_delta[ib] += gb * (lam * wb)
+			_delta[ic] += gc * (lam * wc)
+			_delta[id] += gd * (lam * wd)
+			_count[ia] += 1
+			_count[ib] += 1
+			_count[ic] += 1
+			_count[id] += 1
+		for i in n:
+			if _count[i] > 0:
+				positions[i] += _delta[i] * (jacobi_relax / float(_count[i]))
+		for _b in bar_passes:
+			_project_bars(bc)
 		# Velocities.
 		var inv_dt: float = 1.0 / dt
 		for i in n:
 			velocities[i] = (positions[i] - _prev[i]) * (inv_dt * damping)
 	_record_angles()
 	_compute_strain()
+
+
+func _project_bars(bc: int) -> void:
+	for k in bc:
+		var ia: int = bar_a[k]
+		var ib: int = bar_b[k]
+		var wa: float = inv_mass[ia]
+		var wb: float = inv_mass[ib]
+		var wsum: float = wa + wb
+		if wsum <= 0.0:
+			continue
+		var delta: Vector3 = positions[ib] - positions[ia]
+		var len: float = delta.length()
+		if len < 1e-9:
+			continue
+		var c: float = len - bar_rest[k]
+		var corr: Vector3 = delta * (c / (len * (wsum + bar_compliance)))
+		positions[ia] += corr * wa
+		positions[ib] -= corr * wb
 
 
 func _record_angles() -> void:

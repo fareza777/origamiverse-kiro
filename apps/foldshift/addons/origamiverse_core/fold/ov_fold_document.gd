@@ -277,6 +277,98 @@ func triangulated() -> OVFoldDocument:
 	return d
 
 
+## Returns a copy where paper is actually separated along cut (C) edges: vertices on a cut get one copy per
+## side, so simulations treat the two sides as free. Interior cut tips stay shared (the slit ends there).
+func split_along_cuts() -> OVFoldDocument:
+	var has_cut: bool = false
+	for a in assignments:
+		if a == OVCore.Assign.CUT:
+			has_cut = true
+			break
+	if not has_cut:
+		return duplicate_document()
+	var d: OVFoldDocument = duplicate_document()
+	var orig_of: PackedInt32Array = PackedInt32Array()
+	orig_of.resize(d.vertex_count())
+	for i in d.vertex_count():
+		orig_of[i] = i
+	var incident: Array = []
+	incident.resize(vertex_count())
+	for i in vertex_count():
+		incident[i] = PackedInt32Array()
+	for fi in faces.size():
+		for v in faces[fi]:
+			incident[v].append(fi)
+	for v in vertex_count():
+		var fs: PackedInt32Array = incident[v]
+		if fs.size() < 2:
+			continue
+		# Union faces around v that share a non-cut edge through v.
+		var comp: Dictionary = {}
+		for f in fs:
+			comp[f] = f
+		var find := func(x: int) -> int:
+			while comp[x] != x:
+				x = comp[x]
+			return x
+		for i in fs.size():
+			for j in range(i + 1, fs.size()):
+				var fa: PackedInt32Array = faces[fs[i]]
+				var fb: PackedInt32Array = faces[fs[j]]
+				for w in fa:
+					if w != v and fb.has(w):
+						var e: int = find_edge(v, w)
+						if e >= 0 and assignments[e] != OVCore.Assign.CUT:
+							var ra: int = find.call(fs[i])
+							var rb: int = find.call(fs[j])
+							if ra != rb:
+								comp[ra] = rb
+		var roots: Dictionary = {}
+		for f in fs:
+			roots[find.call(f)] = true
+		if roots.size() <= 1:
+			continue
+		var first: bool = true
+		for r in roots.keys():
+			if first:
+				first = false
+				continue
+			var nv: int = d.add_vertex(d.vertices[v])
+			orig_of.append(v)
+			for f in fs:
+				if find.call(f) == r:
+					var face: PackedInt32Array = d.faces[f]
+					for k in face.size():
+						if face[k] == v:
+							face[k] = nv
+					d.faces[f] = face
+	# Rebuild edges from faces, keeping each original edge's assignment and angle.
+	var new_edges: Dictionary = {}
+	var order: Array = []
+	for f in d.faces:
+		for k in f.size():
+			var a2: int = f[k]
+			var b2: int = f[(k + 1) % f.size()]
+			var key: Vector2i = Vector2i(mini(a2, b2), maxi(a2, b2))
+			if not new_edges.has(key):
+				new_edges[key] = 0
+				order.append(key)
+			new_edges[key] += 1
+	d.edges.clear()
+	d.assignments.clear()
+	d.fold_angles.clear()
+	for key in order:
+		var oe: int = find_edge(orig_of[key.x], orig_of[key.y])
+		var asg: int = assignments[oe] if oe >= 0 else OVCore.Assign.FLAT
+		var ang: float = fold_angles[oe] if oe >= 0 else 0.0
+		if new_edges[key] == 1 and asg != OVCore.Assign.CUT:
+			asg = OVCore.Assign.BOUNDARY
+			ang = 0.0
+		d.add_edge(key.x, key.y, asg, ang)
+	d.touch()
+	return d
+
+
 ## Bounding rectangle of the sheet in FOLD 2D space.
 func sheet_rect() -> Rect2:
 	if vertices.is_empty():

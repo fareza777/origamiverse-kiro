@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run core tests after core change",
+      "trigger": "PostFileSave",
+      "description": "Runs headless core unit tests when core or its tests are saved",
+      "matcher": "shared-core[\\\\/](addons|tests)[\\\\/].*\\.gd$",
+      "action": {
+        "type": "command",
+        "command": "C:\\dev\\godot\\Godot_v4.7.2-stable_win64_console.exe --headless --path shared-core -s res://tests/run_tests.gd",
+        "timeout": 120
+      }
+    }
+  ]
+}

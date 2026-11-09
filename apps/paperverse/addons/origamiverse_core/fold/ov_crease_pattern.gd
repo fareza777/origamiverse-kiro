@@ -5,7 +5,7 @@ extends RefCounted
 
 signal changed
 
-const MERGE_TOL: float = 1e-4
+const MERGE_TOL: float = 0.002   ## 0.2 % of the sheet: merges near-coincident endpoints from imported art
 
 ## Each segment: {"a": Vector2, "b": Vector2, "assign": int, "angle": float}
 var segments: Array[Dictionary] = []
@@ -239,7 +239,7 @@ func to_document() -> OVFoldDocument:
 	# 5. Faces via half-edge traversal.
 	_extract_faces(doc)
 	doc.meta["file_classes"] = ["singleModel"]
-	return doc.triangulated()
+	return doc.triangulated().split_along_cuts()
 
 
 func _extract_faces(doc: OVFoldDocument) -> void:

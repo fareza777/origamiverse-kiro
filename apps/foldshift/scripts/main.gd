@@ -1,7 +1,7 @@
 extends Node
 ## FoldShift scene flow and screens. The 3D world is a live FSWorld even behind menus.
 
-const K = preload("res://scripts/ui/fs_ui_kit.gd")
+const K = preload("res://addons/origamiverse_core/ui/ov_ui_kit.gd")
 
 var world_slot: Node3D
 var ui: CanvasLayer
@@ -342,6 +342,7 @@ func _build_hud(L: FSLevelData) -> void:
 	_toast_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast_label = K.label("")
+	_toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_toast_label.custom_minimum_size.x = K.s(760)
 	_toast_panel.add_child(_toast_label)
 	_toast_panel.modulate.a = 0.0

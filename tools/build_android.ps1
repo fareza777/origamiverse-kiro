@@ -4,6 +4,7 @@
 param(
     [string]$App = "all",
     [switch]$Install,
+    [int]$TimeoutMinutes = 15,
     [string]$Godot = "C:\dev\godot\Godot_v4.7.2-stable_win64_console.exe"
 )
 # Native tools write progress to stderr; failures are detected by checking outputs instead.
@@ -17,6 +18,8 @@ if (Test-Path $envFile) {
     }
 }
 if (-not $env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH) { throw "Release keystore env vars are not set." }
+# A lingering Gradle daemon inherits Godot's output pipe and keeps the export process alive; run Gradle without it.
+$env:GRADLE_OPTS = "-Dorg.gradle.daemon=false"
 
 python "$root\tools\sync_core.py" --check
 if ($LASTEXITCODE -ne 0) { throw "Core copies drifted. Run python tools/sync_core.py" }
@@ -39,8 +42,18 @@ foreach ($a in $apps) {
         $ext = if ($preset -like "*AAB") { "aab" } else { "apk" }
         $name = (Get-Culture).TextInfo.ToTitleCase($a) -replace "Foldshift", "FoldShift" -replace "Paperverse", "PaperVerse"
         $target = Join-Path $out "$name-1.0.0.$ext"
-        & $Godot --headless --path $proj --export-release $preset $target 2>&1 | Select-String -Pattern "ERROR|error:|BUILD|FAILED" | ForEach-Object { Write-Host $_ }
-        if (-not (Test-Path $target)) { throw "[$a] $preset export failed" }
+        if (Test-Path $target) { Remove-Item $target -Force }
+        $log = Join-Path $out "$ext-export.log"
+        $p = Start-Process -FilePath $Godot -ArgumentList @("--headless", "--path", "`"$proj`"", "--export-release", "`"$preset`"", "`"$target`"") `
+            -RedirectStandardOutput $log -RedirectStandardError "$log.err" -PassThru -NoNewWindow
+        if (-not $p.WaitForExit($TimeoutMinutes * 60 * 1000)) {
+            $p | Stop-Process -Force
+            & "$proj\android\build\gradlew.bat" --stop 2>&1 | Out-Null
+            if (-not (Test-Path $target)) { throw "[$a] $preset export timed out after $TimeoutMinutes min (see $log)" }
+            Write-Host "[$a] Godot did not exit after writing $target; stopped it (Gradle kept the pipe open)."
+        }
+        Select-String -Path $log, "$log.err" -Pattern "ERROR|FAILED" | ForEach-Object { Write-Host $_.Line }
+        if (-not (Test-Path $target)) { throw "[$a] $preset export failed (see $log)" }
         Write-Host ("[$a] {0}  {1:N1} MB" -f $target, ((Get-Item $target).Length / 1MB))
     }
     if ($Install) {

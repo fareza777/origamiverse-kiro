@@ -1,0 +1,53 @@
+{
+ "id": "square_base",
+ "title": "Square Base",
+ "description": "The preliminary fold that starts the crane.",
+ "fold_percent": 0.95,
+ "source": "Origami Simulator examples by Amanda Ghassaei (MIT License): Bases/squareBase.svg",
+ "pattern": {
+  "outline": [
+   [
+    1.0,
+    0.0
+   ],
+   [
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    1.0
+   ],
+   [
+    0.0,
+    0.0
+   ]
+  ],
+  "segments": [
+   [
+    0.5,
+    0.0,
+    0.5,
+    1.0,
+    "M",
+    -180.0
+   ],
+   [
+    1.0,
+    0.5,
+    0.0,
+    0.5,
+    "M",
+    -180.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    1.0,
+    "V",
+    180.0
+   ]
+  ]
+ }
+}

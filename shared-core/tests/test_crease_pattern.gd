@@ -100,3 +100,22 @@ func test_from_document() -> void:
 		if s.assign == A.MOUNTAIN:
 			creases += 1
 	check_eq(creases, 1, "mountain recovered")
+
+
+func test_cut_splits_vertices() -> void:
+	var cp: OVCreasePattern = OVCreasePattern.new()
+	cp.add_segment(Vector2(0, 0.5), Vector2(0.5, 0.5), A.CUT)
+	cp.add_segment(Vector2(0.5, 0), Vector2(0.5, 1), A.VALLEY)
+	var doc: OVFoldDocument = cp.to_document()
+	var at_edge: int = 0
+	var at_tip: int = 0
+	for p in doc.vertices:
+		var uv: Vector2 = OVCore.sheet_uv(p)
+		if uv.is_equal_approx(Vector2(0, 0.5)):
+			at_edge += 1
+		if uv.is_equal_approx(Vector2(0.5, 0.5)):
+			at_tip += 1
+	check_eq(at_edge, 2, "boundary end of the cut is split into two vertices")
+	check_eq(at_tip, 1, "the cut's inner tip stays shared")
+	check_eq(_count(doc, A.CUT), 2, "one cut edge per side")
+	check(doc.validate().is_empty(), "valid after split")

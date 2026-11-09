@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Re-prove FoldShift levels",
+      "trigger": "PostFileSave",
+      "description": "Solver proves every level solvable with computed par when level data or puzzle rules change",
+      "matcher": "apps[\\\\/]foldshift[\\\\/](levels|scripts[\\\\/]level)[\\\\/]",
+      "action": {
+        "type": "command",
+        "command": "C:\\dev\\godot\\Godot_v4.7.2-stable_win64_console.exe --headless --path apps/foldshift -s res://tests/run_tests.gd",
+        "timeout": 180
+      }
+    }
+  ]
+}

@@ -43,6 +43,10 @@ func _ready() -> void:
 	apply_settings()
 	ui_scale = OVThemeFactory.ui_scale_for(get_viewport().get_visible_rect().size)
 	theme = OVThemeFactory.build(palette, ui_scale)
+	OVUIKit.scale = ui_scale
+	OVUIKit.on_click = func() -> void:
+		audio.play("ui")
+		audio.haptic(8, 0.25)
 
 
 func _notification(what: int) -> void:

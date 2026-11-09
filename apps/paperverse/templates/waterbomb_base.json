@@ -1,0 +1,61 @@
+{
+ "id": "waterbomb_base",
+ "title": "Waterbomb Base",
+ "description": "Traditional base for balloons and frogs.",
+ "fold_percent": 0.95,
+ "source": "Origami Simulator examples by Amanda Ghassaei (MIT License): Bases/waterbombBase.svg",
+ "pattern": {
+  "outline": [
+   [
+    1.0,
+    0.0
+   ],
+   [
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    1.0
+   ],
+   [
+    0.0,
+    0.0
+   ]
+  ],
+  "segments": [
+   [
+    0.0,
+    1.0,
+    1.0,
+    0.0,
+    "M",
+    -180.0
+   ],
+   [
+    1.0,
+    1.0,
+    0.0,
+    0.0,
+    "M",
+    -180.0
+   ],
+   [
+    0.0,
+    0.5,
+    1.0,
+    0.5,
+    "V",
+    90.0
+   ],
+   [
+    0.5,
+    1.0,
+    0.5,
+    0.0,
+    "V",
+    90.0
+   ]
+  ]
+ }
+}

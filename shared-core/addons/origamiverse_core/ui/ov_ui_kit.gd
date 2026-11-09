@@ -1,10 +1,14 @@
-class_name FSUIKit
+class_name OVUIKit
 extends RefCounted
-## Small helpers so screens read as layout, not boilerplate.
+## Small UI helpers shared by both apps so screens read as layout, not boilerplate.
+## Apps set `scale` (from OVThemeFactory.ui_scale_for) and `on_click` (sound + haptic) once at startup.
+
+static var scale: float = 1.0
+static var on_click: Callable = Callable()
 
 
 static func s(v: float) -> float:
-	return v * Game.ui_scale
+	return v * scale
 
 
 static func button(text: String, cb: Callable, variation: String = "", min_w: float = 0.0) -> Button:
@@ -15,8 +19,8 @@ static func button(text: String, cb: Callable, variation: String = "", min_w: fl
 	b.custom_minimum_size = Vector2(s(min_w), s(96))
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func() -> void:
-		Game.audio.play("ui")
-		Game.audio.haptic(8, 0.25)
+		if on_click.is_valid():
+			on_click.call()
 		cb.call())
 	return b
 
@@ -27,7 +31,8 @@ static func label(text: String, variation: String = "", align: int = HORIZONTAL_
 	if variation != "":
 		l.theme_type_variation = variation
 	l.horizontal_alignment = align
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Short labels inside rows must never wrap letter by letter; only sentences wrap.
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if text.length() > 18 else TextServer.AUTOWRAP_OFF
 	return l
 
 
@@ -76,7 +81,7 @@ static func screen_root() -> MarginContainer:
 	m.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var safe: Rect2i = DisplayServer.get_display_safe_area()
 	var screen: Vector2i = DisplayServer.screen_get_size()
-	var vp: Vector2 = Game.get_viewport().get_visible_rect().size
+	var vp: Vector2 = (Engine.get_main_loop() as SceneTree).root.get_visible_rect().size
 	var k: float = vp.y / maxf(float(screen.y), 1.0) if screen.y > 0 else 1.0
 	var top: float = maxf(0.0, safe.position.y * k) if OS.has_feature("mobile") else 0.0
 	var bottom: float = maxf(0.0, (screen.y - safe.end.y) * k) if OS.has_feature("mobile") else 0.0

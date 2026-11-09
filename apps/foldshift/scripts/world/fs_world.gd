@@ -27,7 +27,7 @@ var undo: OVUndoStack = OVUndoStack.new()
 var input_enabled: bool = true
 var reduce_motion: bool = false
 
-var rig: FSCameraRig
+var rig: OVOrbitCamera
 var kami: FSCharacter
 var gestures: OVGestureTracker
 var environment_node: FSEnvironment
@@ -133,7 +133,7 @@ func build(p: FSPuzzle, style_id: String, saved_state: Dictionary = {}) -> void:
 	kami.stepped.connect(_on_kami_step)
 	kami.arrived.connect(_on_kami_arrived)
 
-	rig = FSCameraRig.new()
+	rig = OVOrbitCamera.new()
 	add_child(rig)
 	gestures = OVGestureTracker.new()
 	add_child(gestures)
