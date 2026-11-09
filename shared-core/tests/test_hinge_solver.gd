@@ -119,3 +119,25 @@ func test_cut_separates_panels() -> void:
 	var r: Dictionary = s.build(cp.to_document())
 	check(r.ok, "cut opens the loop: %s" % str(r.errors))
 	check_eq(s.hinge_count(), 3, "three hinges in a tree")
+
+
+func test_forest_with_fixed_panels() -> void:
+	# Two separate pieces of ground (left and right) each carry a flap; cuts keep them apart.
+	var cp: OVCreasePattern = OVCreasePattern.new()
+	cp.add_segment(Vector2(0.25, 0), Vector2(0.25, 1), A.VALLEY)
+	cp.add_segment(Vector2(0.5, 0), Vector2(0.5, 1), A.CUT)
+	cp.add_segment(Vector2(0.75, 0), Vector2(0.75, 1), A.VALLEY)
+	var doc: OVFoldDocument = cp.to_document()
+	var left: int = _face_with_point(doc, Vector2(0.1, 0.5))
+	var right: int = _face_with_point(doc, Vector2(0.9, 0.5))
+	var s: OVHingeSolver = OVHingeSolver.new()
+	s.build(doc, left)
+	check_eq(s.hinge_count(), 1, "without fixed panels the right flap is unreachable from the root")
+	var r: Dictionary = s.build(doc, left, PackedInt32Array([right]))
+	check(r.ok, "forest builds: %s" % str(r.errors))
+	check_eq(s.hinge_count(), 2, "both flaps hinged")
+	s.thickness = 0.0
+	s.apply_fold_percent(0.5)
+	s.update()
+	var rp: Vector3 = s.panel_transforms[s.panel_of_face[right]] * OVCore.fold_to_godot(0.9, 0.5)
+	check_vec_near(rp, OVCore.fold_to_godot(0.9, 0.5), 1e-6, "fixed panel stays put")

@@ -114,7 +114,7 @@ func cell_char(p: Vector3i) -> String:
 
 
 ## Builds the FOLD document for an island.
-## Returns {"doc": OVFoldDocument, "cell_faces": {Vector2i: PackedInt32Array}, "root_face": int}
+## Returns {"doc", "cell_faces": {Vector2i: PackedInt32Array}, "root_face", "fixed_faces"} where fixed faces are base paper.
 func build_island_document(island_index: int) -> Dictionary:
 	var cells: Dictionary = islands[island_index].cells
 	var doc: OVFoldDocument = OVFoldDocument.new()
@@ -130,6 +130,7 @@ func build_island_document(island_index: int) -> Dictionary:
 	var keys: Array = cells.keys()
 	keys.sort()
 	var root_face: int = -1
+	var fixed: PackedInt32Array = PackedInt32Array()
 	for cell in keys:
 		var r: int = cell.x
 		var c: int = cell.y
@@ -141,8 +142,10 @@ func build_island_document(island_index: int) -> Dictionary:
 		var f1: int = doc.add_face(PackedInt32Array([c0, c2, c3]))
 		cell_faces[cell] = PackedInt32Array([f0, f1])
 		doc.add_edge(c0, c2, OVCore.Assign.FLAT, 0.0)
-		if root_face < 0 and cells[cell] == ".":
-			root_face = f0
+		if cells[cell] == ".":
+			fixed.append(f0)
+			if root_face < 0:
+				root_face = f0
 	# Cell sides: S = between corner rows r+1 (c0-c1), E (c1-c2), N (c2-c3), W (c3-c0).
 	for cell in keys:
 		var r: int = cell.x
@@ -163,7 +166,7 @@ func build_island_document(island_index: int) -> Dictionary:
 			if cells.has(other):
 				assign = _edge_assign(cells[cell], side, cells[other])
 			doc.add_edge(a, b, assign, 180.0 if assign == OVCore.Assign.VALLEY else 0.0)
-	return {"doc": doc, "cell_faces": cell_faces, "root_face": maxi(root_face, 0)}
+	return {"doc": doc, "cell_faces": cell_faces, "root_face": maxi(root_face, 0), "fixed_faces": fixed}
 
 
 const OPPOSITE: Dictionary = {"N": "S", "S": "N", "E": "W", "W": "E"}

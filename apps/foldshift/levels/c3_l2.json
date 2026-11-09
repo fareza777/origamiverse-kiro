@@ -1,0 +1,24 @@
+{
+  "id": "c3_l2", "chapter": 3, "index": 2, "title": "Seal Across the Water",
+  "hint": "The seal you need is on another island. Find the free flaps first.",
+  "par": 3,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . a . .",
+      ". . a . .",
+      "_ _ _ _ c"
+    ]},
+    {"origin": [0, 0, 3], "rows": [
+      ". . b . .",
+      ". . b . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180},
+    "b": {"hinge": "E", "angles": [180, 0], "start": 180},
+    "c": {"hinge": "N", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 0, 0], "goal": [1, 1, 0],
+  "seals": [{"at": [0, 0, 4], "unlocks": "b"}],
+  "cranes": [[1, 0, 2, "back"]]
+}

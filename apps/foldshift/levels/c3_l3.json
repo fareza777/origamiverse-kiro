@@ -1,0 +1,29 @@
+{
+  "id": "c3_l3", "chapter": 3, "index": 3, "title": "Two Keys",
+  "hint": "One seal is printed on the folded strip itself. Read the paper before you fold it.",
+  "par": 2,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . . a",
+      ". . . a",
+      ". . . a"
+    ]},
+    {"origin": [3, 1, 0], "rows": [
+      ". . . b",
+      ". . . b",
+      ". . . b"
+    ]},
+    {"origin": [6, 0, 0], "rows": [
+      ". . .",
+      ". . .",
+      ". . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 90], "start": 180},
+    "b": {"hinge": "W", "angles": [180, 0, -90], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [2, 1, 2],
+  "seals": [{"at": [0, 2, 0], "unlocks": "a"}, {"at": [0, 0, 3], "unlocks": "b"}],
+  "cranes": [[1, 2, 3, "back"]]
+}

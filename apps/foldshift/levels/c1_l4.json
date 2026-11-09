@@ -1,0 +1,18 @@
+{
+  "id": "c1_l4", "chapter": 1, "index": 4, "title": "Lantern Under Paper",
+  "hint": "The lantern is tucked under a fold. Uncover it, but never fold paper onto Kami.",
+  "par": 2,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . a . . . .",
+      ". . a . . g g",
+      ". . a . . . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180},
+    "g": {"hinge": "W", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [0, 1, 3],
+  "cranes": [[0, 1, 6, "back"], [0, 0, 2, "front"]]
+}

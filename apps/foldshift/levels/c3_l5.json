@@ -1,0 +1,31 @@
+{
+  "id": "c3_l5", "chapter": 3, "index": 5, "title": "Moonlit Fold",
+  "hint": "Bridge, seal, a wall two folds tall, then a long way down to the last lantern.",
+  "par": 4,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". e . a b",
+      ". e . a b",
+      ". e . a b"
+    ]},
+    {"origin": [3, 2, 0], "rows": [
+      ". . . d",
+      ". . . d",
+      ". . . d"
+    ]},
+    {"origin": [6, 1, 0], "rows": [
+      ". . .",
+      ". . .",
+      ". . ."
+    ]}
+  ],
+  "flaps": {
+    "e": {"hinge": "E", "angles": [180, 0], "start": 180},
+    "a": {"hinge": "W", "angles": [180, 90], "start": 180},
+    "b": {"hinge": "W", "parent": "a", "angles": [-180, 0], "start": -180},
+    "d": {"hinge": "W", "angles": [180, 0, -90], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [2, 1, 2],
+  "seals": [{"at": [0, 0, 2], "unlocks": "b"}],
+  "cranes": [[0, 1, 4, "front"], [1, 0, 3, "back"]]
+}

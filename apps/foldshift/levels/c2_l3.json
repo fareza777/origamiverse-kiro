@@ -1,0 +1,26 @@
+{
+  "id": "c2_l3", "chapter": 2, "index": 3, "title": "Cliff Steps",
+  "hint": "Two cliffs, two walls. The second wall waits on the middle ledge.",
+  "par": 3,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . a",
+      ". . a"
+    ]},
+    {"origin": [2, 1, 0], "rows": [
+      ". . . b",
+      ". . . b"
+    ]},
+    {"origin": [5, 2, 0], "rows": [
+      ". c . .",
+      ". c . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 90], "start": 180},
+    "b": {"hinge": "W", "angles": [180, 90], "start": 180},
+    "c": {"hinge": "W", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 0, 0], "goal": [2, 1, 3],
+  "cranes": [[1, 0, 3, "back"], [2, 1, 1, "back"]]
+}

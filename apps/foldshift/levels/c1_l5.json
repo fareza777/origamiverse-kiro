@@ -1,0 +1,20 @@
+{
+  "id": "c1_l5", "chapter": 1, "index": 5, "title": "Paper Garden",
+  "hint": "Everything you have learned: a strip tucked behind a strip, a hidden lantern, and a crane on every back.",
+  "par": 3,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      "_ . . a b . . . _ _ _",
+      ". . . a b . . . c . .",
+      "_ . . a b . . g g . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180},
+    "b": {"hinge": "W", "parent": "a", "angles": [-180, 0], "start": -180},
+    "c": {"hinge": "E", "angles": [180, 0], "start": 180},
+    "g": {"hinge": "E", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [0, 2, 10],
+  "cranes": [[0, 1, 4, "front"], [0, 1, 8, "back"]]
+}

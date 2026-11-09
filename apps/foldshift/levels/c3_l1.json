@@ -1,0 +1,18 @@
+{
+  "id": "c3_l1", "chapter": 3, "index": 1, "title": "Wax Seal",
+  "hint": "Colored flaps are sealed. Walk Kami onto the wax seal of the same color to free them.",
+  "par": 1,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . . a . . .",
+      ". . . a . . .",
+      ". . . a . . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [0, 1, 6],
+  "seals": [{"at": [0, 2, 0], "unlocks": "a"}],
+  "cranes": [[0, 0, 3, "back"]]
+}

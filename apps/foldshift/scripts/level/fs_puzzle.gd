@@ -46,7 +46,7 @@ func setup(L: FSLevelData) -> Dictionary:
 		var doc: OVFoldDocument = built.doc
 		var s: OVHingeSolver = OVHingeSolver.new()
 		s.root_transform = Transform3D(Basis.IDENTITY, L.islands[i].origin)
-		var r: Dictionary = s.build(doc, built.root_face)
+		var r: Dictionary = s.build(doc, built.root_face, built.fixed_faces)
 		if not r.ok:
 			for e in r.errors:
 				errors.append("Island %d: %s" % [i, e])

@@ -28,7 +28,9 @@ var _dirty: bool = true
 
 
 ## Builds panels and the hinge tree. Returns OVCore.ok()/fail().
-func build(document: OVFoldDocument, root_face: int = 0) -> Dictionary:
+## `fixed_faces` (optional) marks extra faces whose panels are anchored to the root frame. Every fixed panel
+## becomes a root, so several separate pieces of ground can each carry their own flaps (a forest of trees).
+func build(document: OVFoldDocument, root_face: int = 0, fixed_faces: PackedInt32Array = PackedInt32Array()) -> Dictionary:
 	doc = document
 	var errors: PackedStringArray = PackedStringArray()
 	if doc.is_3d:
@@ -108,6 +110,12 @@ func build(document: OVFoldDocument, root_face: int = 0) -> Dictionary:
 	seen.resize(np)
 	seen[root_panel] = 1
 	panel_order = PackedInt32Array([root_panel])
+	for ff in fixed_faces:
+		if ff >= 0 and ff < nf:
+			var fp: int = panel_of_face[ff]
+			if seen[fp] == 0:
+				seen[fp] = 1
+				panel_order.append(fp)
 	var used_pairs: Dictionary = {}
 	_clear_hinges()
 	var head: int = 0

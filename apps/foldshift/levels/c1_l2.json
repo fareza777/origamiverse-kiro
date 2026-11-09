@@ -1,0 +1,18 @@
+{
+  "id": "c1_l2", "chapter": 1, "index": 2, "title": "Two Bridges",
+  "hint": "Each strip folds on its own hinge. A crane hides on the far strip's back: fold it up again once you are across.",
+  "par": 2,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      "_ . . a . . b . _",
+      ". . . a . . b . .",
+      "_ . . a . . b . _"
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180},
+    "b": {"hinge": "E", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [0, 1, 8],
+  "cranes": [[0, 0, 6, "back"]]
+}

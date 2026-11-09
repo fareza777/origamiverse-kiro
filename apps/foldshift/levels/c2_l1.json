@@ -1,0 +1,22 @@
+{
+  "id": "c2_l1", "chapter": 2, "index": 1, "title": "Wall Walker",
+  "hint": "Fold the strip halfway up. Paper walls are floors for Kami: gravity follows the paper.",
+  "par": 1,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . . a",
+      ". . . a",
+      ". . . a"
+    ]},
+    {"origin": [3, 1, 0], "rows": [
+      ". . .",
+      ". . .",
+      ". . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 90], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [1, 1, 2],
+  "cranes": [[0, 0, 3, "back"]]
+}

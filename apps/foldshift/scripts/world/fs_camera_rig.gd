@@ -31,7 +31,7 @@ func frame_bounds(box: AABB, preset: Dictionary = {}, viewport_aspect: float = 0
 	var fit: float = radius / sin(hfov * 0.5) * 0.8
 	home = {
 		"yaw": float(preset.get("yaw", 35.0)),
-		"pitch": float(preset.get("pitch", 52.0)),
+		"pitch": float(preset.get("pitch", 42.0)),
 		"distance": clampf(float(preset.get("distance", fit)), 5.0, 40.0),
 	}
 	min_distance = home.distance * 0.45

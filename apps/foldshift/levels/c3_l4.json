@@ -1,0 +1,25 @@
+{
+  "id": "c3_l4", "chapter": 3, "index": 4, "title": "Hidden Lantern",
+  "hint": "A seal sleeps under the paper, and the lantern under its seal-locked flap.",
+  "par": 3,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . . h h",
+      ". . . h h",
+      ". . . . .",
+      "_ _ k _ _"
+    ]},
+    {"origin": [0, 0, 4], "rows": [
+      ". . . g",
+      ". . . g"
+    ]}
+  ],
+  "flaps": {
+    "h": {"hinge": "W", "angles": [180, 0], "start": 180},
+    "k": {"hinge": "N", "angles": [180, 0], "start": 180},
+    "g": {"hinge": "W", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 2, 0], "goal": [1, 1, 2],
+  "seals": [{"at": [0, 0, 1], "unlocks": "g"}],
+  "cranes": [[0, 0, 4, "back"], [0, 3, 2, "back"]]
+}

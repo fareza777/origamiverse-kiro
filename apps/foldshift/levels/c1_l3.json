@@ -1,0 +1,18 @@
+{
+  "id": "c1_l3", "chapter": 1, "index": 3, "title": "Folded Twice",
+  "hint": "Paper can hold paper. Unfold the outer strip first, then the one tucked behind it.",
+  "par": 2,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      ". . a b . .",
+      ". . a b . .",
+      ". . a b . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180},
+    "b": {"hinge": "W", "parent": "a", "angles": [-180, 0], "start": -180}
+  },
+  "start": [0, 1, 0], "goal": [0, 1, 5],
+  "cranes": [[0, 2, 3, "front"]]
+}

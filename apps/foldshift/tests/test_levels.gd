@@ -51,6 +51,7 @@ func test_replay_solution_in_puzzle() -> void:
 		var p2: FSPuzzle = FSPuzzle.new()
 		p2.setup(L)
 		for m in s.solution:
+			_break_reachable_seals(p2)
 			var tile: int = m.stand
 			var walk: PackedInt32Array = p2.path_to_tile(tile)
 			if p2.player_node / 2 != tile:
@@ -65,6 +66,15 @@ func test_replay_solution_in_puzzle() -> void:
 		p2.walk(final)
 		check(p2.is_won(), "%s: won" % L.id)
 		check_eq(p2.folds, s.par, "%s: fold count equals par" % L.id)
+
+
+## Walks to every reachable unbroken seal (seals only ever help, mirroring the solver).
+func _break_reachable_seals(p: FSPuzzle) -> void:
+	for i in p.level.seals.size():
+		if p.seal_broken_flags[i] == 0:
+			var path: PackedInt32Array = p.path_to_tile(p.tile_of[p.level.seals[i].at])
+			if not path.is_empty():
+				p.walk(path)
 
 
 func test_rules_on_first_level() -> void:

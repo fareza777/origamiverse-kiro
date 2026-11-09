@@ -1,0 +1,23 @@
+{
+  "id": "c2_l2", "chapter": 2, "index": 2, "title": "Over the Edge",
+  "hint": "Folds work downward too. Hang the strip over the cliff and climb down its face.",
+  "par": 2,
+  "islands": [
+    {"origin": [0, 1, 0], "rows": [
+      ". . . a",
+      ". . . a",
+      ". . . a"
+    ]},
+    {"origin": [3, 0, 0], "rows": [
+      ". . b . .",
+      ". . b . .",
+      ". . b . ."
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0, -90], "start": 180},
+    "b": {"hinge": "W", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 1, 0], "goal": [1, 1, 4],
+  "cranes": [[0, 2, 3, "back"]]
+}
