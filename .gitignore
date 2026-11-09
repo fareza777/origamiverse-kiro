@@ -1,0 +1,29 @@
+# Godot
+.godot/
+*.tmp
+apps/*/android/
+shared-core/android/
+export_credentials.cfg
+
+# Build outputs (release binaries are attached to GitHub Releases)
+build/
+
+# Local research clones and scratch renders
+_reference/
+_scratch/
+store/_renders/
+
+# Remotion
+promo/remotion/node_modules/
+promo/remotion/out/
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets: never commit keystores
+*.keystore
+*.jks
+*.env
+
+# NOTE: .kiro/ is part of the submission and must stay tracked.

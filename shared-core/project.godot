@@ -1,0 +1,14 @@
+; OrigamiVerse Core host project. Runs the core unit tests headless.
+
+config_version=5
+
+[application]
+
+config/name="OrigamiVerse Core"
+config/description="Shared origami engine for FoldShift and PaperVerse (F7 Developer)."
+config/features=PackedStringArray("4.7", "Mobile")
+
+[rendering]
+
+renderer/rendering_method="mobile"
+rendering_device/fallback_to_opengl3=true

@@ -1,0 +1,21 @@
+{
+  "id": "c1_l1",
+  "chapter": 1,
+  "index": 1,
+  "title": "First Crease",
+  "hint": "Drag the folded strip across the gap to lay a bridge. Tap a tile to walk.",
+  "par": 1,
+  "islands": [
+    {"origin": [0, 0, 0], "rows": [
+      "_ . . a . . _",
+      ". . . a . . .",
+      "_ . . a . . _"
+    ]}
+  ],
+  "flaps": {
+    "a": {"hinge": "W", "angles": [180, 0], "start": 180}
+  },
+  "start": [0, 1, 0],
+  "goal": [0, 1, 6],
+  "cranes": [[0, 0, 3, "back"]]
+}
