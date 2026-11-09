@@ -49,6 +49,12 @@ func _ready() -> void:
 		audio.haptic(8, 0.25)
 
 
+func _exit_tree() -> void:
+	# OVUIKit.on_click is a static var holding a lambda bound to this node. Left set, it outlives the node
+	# at shutdown and Godot crashes (0xC0000005) or hangs while freeing static vars.
+	OVUIKit.on_click = Callable()
+
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		var main: Node = get_tree().current_scene

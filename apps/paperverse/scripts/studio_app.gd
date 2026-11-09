@@ -30,6 +30,12 @@ func _ready() -> void:
 	audio.set_ambience("studio")
 
 
+func _exit_tree() -> void:
+	# OVUIKit.on_click is a static var holding a lambda bound to this node. Left set, it outlives the node
+	# at shutdown and Godot crashes (0xC0000005) or hangs while freeing static vars.
+	OVUIKit.on_click = Callable()
+
+
 func apply_settings() -> void:
 	OVPaperAudio.set_bus_volume("Music", float(settings.music))
 	OVPaperAudio.set_bus_volume("SFX", float(settings.sfx))
