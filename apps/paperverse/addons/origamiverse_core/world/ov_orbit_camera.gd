@@ -9,6 +9,10 @@ var distance: OVSpring = OVSpring.new(12.0, 2.5, 0.95)
 var focus: Vector3 = Vector3.ZERO
 var focus_target: Vector3 = Vector3.ZERO
 var home: Dictionary = {"yaw": 35.0, "pitch": 42.0, "distance": 12.0}
+## Point the camera looks at after recenter().
+var home_focus: Vector3 = Vector3.ZERO
+## Set when the user orbits, zooms or twists; cleared by recenter(). refit() leaves the view alone while it is set.
+var user_moved: bool = false
 var min_distance: float = 2.0
 var max_distance: float = 40.0
 var min_pitch: float = 8.0
@@ -31,11 +35,8 @@ func _ready() -> void:
 func frame_bounds(box: AABB, preset: Dictionary = {}, viewport_aspect: float = 0.5625, fill: float = 0.8, intro: bool = true) -> void:
 	focus_target = box.get_center()
 	focus = focus_target
-	var radius: float = maxf(box.size.length() * 0.5, 0.1)
-	var vfov: float = deg_to_rad(fov)
-	var hfov: float = 2.0 * atan(tan(vfov * 0.5) * viewport_aspect)
-	var limiting: float = minf(vfov, hfov)
-	var fit: float = radius / sin(limiting * 0.5) * fill
+	home_focus = focus_target
+	var fit: float = _fit_distance(maxf(box.size.length() * 0.5, 0.1), viewport_aspect, fill)
 	home = {
 		"yaw": float(preset.get("yaw", home.yaw)),
 		"pitch": float(preset.get("pitch", home.pitch)),
@@ -50,22 +51,47 @@ func frame_bounds(box: AABB, preset: Dictionary = {}, viewport_aspect: float = 0
 	recenter()
 
 
+## Re-frames a subject that changed shape (a sphere around `center`), keeping the current yaw and pitch.
+## The camera glides there unless the user has moved it since the last recenter(); either way recenter() uses it.
+func refit(center: Vector3, radius: float, viewport_aspect: float = 0.5625, fill: float = 1.0) -> void:
+	home_focus = center
+	home.distance = _fit_distance(maxf(radius, 0.1), viewport_aspect, fill)
+	min_distance = home.distance * 0.35
+	max_distance = home.distance * 2.0
+	if not user_moved:
+		focus_target = home_focus
+		distance.target = home.distance
+
+
+## Distance at which a sphere of `radius` fits the narrower field of view; fill < 1 moves closer.
+func _fit_distance(radius: float, viewport_aspect: float, fill: float) -> float:
+	var vfov: float = deg_to_rad(fov)
+	var hfov: float = 2.0 * atan(tan(vfov * 0.5) * viewport_aspect)
+	var limiting: float = minf(vfov, hfov)
+	return radius / sin(limiting * 0.5) * fill
+
+
 func recenter() -> void:
+	user_moved = false
+	focus_target = home_focus
 	yaw.target = home.yaw
 	pitch.target = home.pitch
 	distance.target = home.distance
 
 
 func orbit(rel: Vector2) -> void:
+	user_moved = true
 	yaw.target -= rel.x * 0.25 * sensitivity
 	pitch.target = clampf(pitch.target + rel.y * 0.2 * sensitivity, min_pitch, max_pitch)
 
 
 func zoom(factor: float) -> void:
+	user_moved = true
 	distance.target = clampf(distance.target / factor, min_distance, max_distance)
 
 
 func twist(radians: float) -> void:
+	user_moved = true
 	yaw.target -= rad_to_deg(radians)
 
 

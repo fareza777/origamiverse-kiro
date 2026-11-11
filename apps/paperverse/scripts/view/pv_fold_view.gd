@@ -6,6 +6,12 @@ signal settled
 signal stats_changed(text: String)
 
 const MODEL_SCALE: float = 2.0
+## Still frames before the soft solver sleeps: at its target pose, and when it rests short of the target.
+const SLEEP_FRAMES: int = 20
+const SLEEP_FRAMES_LONG: int = 60
+## Camera fit for the folded paper's bounding sphere. 1.0 fits the whole sphere: folded paper can reach the full
+## radius toward the camera, and anything tighter clipped tall bases at the bottom of the view.
+const FIT_FILL: float = 1.0
 
 var camera_rig: OVOrbitCamera
 var doc: OVFoldDocument
@@ -32,6 +38,8 @@ var _stats_timer: float = 0.0
 var sun: DirectionalLight3D
 ## The pick shape (concave BVH) is rebuilt only when the paper is at rest, not every simulated frame.
 var _pick_dirty: bool = true
+## The paper moved since the camera was last fitted to it.
+var _fit_pending: bool = false
 
 
 func _ready() -> void:
@@ -149,6 +157,7 @@ func load_document(d: OVFoldDocument, pin_face: int, want_rigid: bool) -> Dictio
 	camera_rig.frame_bounds(AABB(Vector3(-1.2, -0.6, -1.2), Vector3(2.4, 1.2, 2.4)), {"yaw": 30.0, "pitch": 48.0}, 1.0, 0.62, false)
 	wake()
 	_update_mesh()
+	_fit_camera()
 	return {"ok": true, "message": message}
 
 
@@ -199,6 +208,7 @@ func _process(dt: float) -> void:
 	if doc == null:
 		return
 	if not sleeping:
+		_fit_pending = true
 		if rigid and rigid_solver:
 			rigid_solver.apply_fold_percent(fold_percent)
 			rigid_solver.update()
@@ -213,9 +223,14 @@ func _process(dt: float) -> void:
 	_ground_y = lerpf(_ground_y, _lowest_y() - 0.03, 1.0 - exp(-dt * 6.0))
 	_ground.position.y = _ground_y - 0.01
 	_stats_timer -= dt
-	if _stats_timer <= 0.0:
+	var tick: bool = _stats_timer <= 0.0
+	if tick:
 		_stats_timer = 0.5
 		stats_changed.emit(stats_text())
+	# Follow the paper's changing shape twice a second while it moves, and once more when it comes to rest.
+	if _fit_pending and (tick or sleeping):
+		_fit_pending = false
+		_fit_camera()
 
 
 func _step_soft(dt: float) -> void:
@@ -236,11 +251,14 @@ func _step_soft(dt: float) -> void:
 		for i in range(0, soft.positions.size(), 3):
 			moved = maxf(moved, soft.positions[i].distance_squared_to(_last_positions[i]))
 	_last_positions = soft.positions.duplicate()
-	if moved < 1e-9 and soft.crease_error_degrees() < 2.0:
+	if moved < 1e-9:
 		_still_frames += 1
 	else:
 		_still_frames = 0
-	if _still_frames > 20:
+	# Sleep once the paper stops moving. Usually it has reached its pose by then; patterns that cannot reach every
+	# crease angle without collisions (bird base, twists, Miura at high percents) rest a little short of it, so after
+	# a longer still spell they sleep anyway instead of simulating forever and draining the battery.
+	if _still_frames > SLEEP_FRAMES_LONG or (_still_frames > SLEEP_FRAMES and soft.crease_error_degrees() < 2.0):
 		sleeping = true
 		settled.emit()
 
@@ -256,6 +274,27 @@ func _update_mesh() -> void:
 		var f: PackedInt32Array = doc.faces[pin_face_index]
 		var pos: PackedVector3Array = soft.positions if not rigid else rigid_solver.vertex_positions()
 		_pin_marker.position = (pos[f[0]] + pos[f[1]] + pos[f[2]]) / 3.0 + Vector3.UP * 0.03
+
+
+## Frames the folded paper. Uses a sphere around the spin axis so turntable animation never leaves the frame.
+## While the user has moved the camera, only the Recenter target is updated.
+func _fit_camera() -> void:
+	if doc == null or camera_rig == null or camera_rig.camera == null:
+		return
+	var pos: PackedVector3Array = folded_vertices()
+	if pos.is_empty():
+		return
+	var lo: float = INF
+	var hi: float = -INF
+	var reach: float = 0.0
+	for p in pos:
+		lo = minf(lo, p.y)
+		hi = maxf(hi, p.y)
+		reach = maxf(reach, p.x * p.x + p.z * p.z)
+	var half_h: float = (hi - lo) * 0.5
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var aspect: float = vs.x / maxf(vs.y, 1.0) if vs.y > 0.0 else 1.0
+	camera_rig.refit(Vector3(0.0, (lo + hi) * 0.5, 0.0), sqrt(reach + half_h * half_h), aspect, FIT_FILL)
 
 
 func _lowest_y() -> float:

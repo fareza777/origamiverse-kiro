@@ -21,7 +21,9 @@ in paper, and export it to FOLD, GLB or OBJ. Built on the same OrigamiVerse Core
 
 ## R3. Templates
 1. At least 12 templates SHALL be available: procedural (half fold, accordion fan, Miura-ori) and classic patterns
-   converted from the MIT-licensed Origami Simulator examples (bases, flapping bird, crane, twist).
+   converted from the MIT-licensed Origami Simulator examples (simple folds, bases, twist).
+   Every template SHALL fold to a recognizable shape with the soft-paper solver; multi-layer models that need layer
+   collisions (flapping bird, crane) are out of scope until the solver handles them.
 2. Creating from a template SHALL produce an editable copy.
 
 ## R4. Animation timeline
