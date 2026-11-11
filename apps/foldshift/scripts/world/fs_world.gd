@@ -48,10 +48,14 @@ var _drag_flap: int = -1
 var _drag_local: Vector3
 var _drag_angle: float = 0.0
 var _drag_last_sound: float = 0.0
+## Stacked flaps under the finger when a drag starts; resolved to one by the drag direction.
+var _drag_candidates: Array[Dictionary] = []
+var _drag_start_screen: Vector2
 var _springs: Dictionary = {}                 # flap -> OVSpring
 var _settle_callbacks: Dictionary = {}        # flap -> Callable
 var _walk_path: PackedInt32Array = PackedInt32Array()
 var _shake: float = 0.0
+var _hint_flap: int = -1
 
 
 func build(p: FSPuzzle, style_id: String, saved_state: Dictionary = {}) -> void:
@@ -234,6 +238,8 @@ func _process(dt: float) -> void:
 		if mode != Mode.WALKING:
 			_place_kami()
 	_animate_markers(dt)
+	if _hint_flap >= 0 and _hint_flap != _drag_flap:
+		_flap_materials[_hint_flap].set_shader_parameter("emission_amount", 0.1 + 0.1 * sin(_time * 5.0))
 	if _shake > 0.0:
 		_shake = maxf(0.0, _shake - dt * 3.0)
 		rig.camera.h_offset = sin(_time * 70.0) * 0.06 * _shake
@@ -326,6 +332,50 @@ func flap_tile(fi: int) -> int:
 		if puzzle.tile_flap[t] == fi:
 			return t
 	return -1
+
+
+## Screen position of the middle of flap `fi`'s own tiles if the flap stood at `angle` degrees.
+## Lets coach marks show exactly where a drag should start and end.
+func flap_screen_point(fi: int, angle: float) -> Vector2:
+	var local: Vector3 = Vector3.ZERO
+	var n: int = 0
+	for t in puzzle.tile_count():
+		if puzzle.tile_flap[t] == fi:
+			var r: PackedVector3Array = puzzle.tile_rest[t]
+			local += (r[0] + r[1] + r[2] + r[3]) * 0.25
+			n += 1
+	if n == 0 or rig == null or rig.camera == null:
+		return Vector2(-10000, -10000)
+	local /= float(n)
+	var s: OVHingeSolver = puzzle.solvers[puzzle.flap_island[fi]]
+	var h: int = puzzle.flap_hinge[fi]
+	var keep: float = s.hinge_angle[h]
+	s.hinge_angle[h] = angle
+	var world_pos: Vector3 = s.panel_transforms[s.hinge_parent[h]] * s.hinge_local_transform(h) * local
+	s.hinge_angle[h] = keep
+	if rig.camera.is_position_behind(world_pos):
+		return Vector2(-10000, -10000)
+	return rig.camera.unproject_position(world_pos)
+
+
+## Makes flap `fi` glow softly until it is dragged (-1 clears).
+func set_hint_flap(fi: int) -> void:
+	if _hint_flap >= 0 and _hint_flap < _flap_materials.size():
+		_flap_materials[_hint_flap].set_shader_parameter("emission_amount", 0.0)
+	_hint_flap = fi
+
+
+## Next step toward the lantern from the current state, computed by FSSolver on a copy of the puzzle in a
+## worker thread. Returns {"kind": "fold", "flap", "angle"}, {"kind": "walk", "tile"} or {"kind": "none"}.
+func plan_hint() -> Dictionary:
+	var snap: Dictionary = puzzle.snapshot()
+	var level: FSLevelData = puzzle.level
+	var result: Array = [{"kind": "none"}]
+	var task: int = WorkerThreadPool.add_task(func() -> void: result[0] = FSSolver.next_step(level, snap))
+	while not WorkerThreadPool.is_task_completed(task):
+		await get_tree().process_frame
+	WorkerThreadPool.wait_for_task_completion(task)
+	return result[0]
 
 
 func _refresh_highlight() -> void:
@@ -440,28 +490,118 @@ func _on_drag_started(screen: Vector2) -> void:
 	if mode != Mode.IDLE:
 		_orbiting = true
 		return
-	var pick: Dictionary = _pick_tile(screen)
-	if not pick.is_empty() and puzzle.tile_flap[pick.tile] >= 0:
-		var fi: int = puzzle.tile_flap[pick.tile]
-		if puzzle.is_locked(fi):
-			Game.audio.play("error")
-			Game.audio.haptic(30)
-			toast.emit("Sealed. Walk Kami onto the matching wax seal.")
-			_shake = 0.6
-			_orbiting = true
-			return
-		_drag_flap = fi
-		var s: OVHingeSolver = puzzle.solvers[puzzle.flap_island[fi]]
-		_drag_local = s.panel_transforms[puzzle.flap_panel[fi]].affine_inverse() * pick.pos
-		_drag_angle = puzzle.current_angle(fi)
-		_drag_last_sound = _drag_angle
-		_flap_materials[fi].set_shader_parameter("emission_amount", 0.12)
-		mode = Mode.DRAG_FOLD
-		Game.audio.play("fold_soft", 1.1, -6.0)
-		Game.audio.haptic(10, 0.3)
-		_highlight_mesh.clear_surfaces()
-	else:
+	var stack: Array[Dictionary] = _pick_flap_stack(screen)
+	if stack.is_empty():
 		_orbiting = true
+		return
+	var free: Array[Dictionary] = []
+	for c in stack:
+		if not puzzle.is_locked(c.flap):
+			free.append(c)
+	if free.is_empty():
+		Game.audio.play("error")
+		Game.audio.haptic(30)
+		toast.emit("Sealed. Walk Kami onto the matching wax seal.")
+		_shake = 0.6
+		_orbiting = true
+		return
+	mode = Mode.DRAG_FOLD
+	_drag_start_screen = screen
+	_highlight_mesh.clear_surfaces()
+	Game.audio.play("fold_soft", 1.1, -6.0)
+	Game.audio.haptic(10, 0.3)
+	if free.size() == 1:
+		_grab_flap(free[0])
+	else:
+		# Several layers of paper under the finger: wait for the drag direction to tell which one is meant.
+		_drag_candidates = free
+		_drag_flap = -1
+
+
+## Starts dragging one flap. `c` = {"flap": index, "local": hit point in the flap panel's rest frame}.
+func _grab_flap(c: Dictionary) -> void:
+	var fi: int = c.flap
+	_drag_candidates = []
+	_drag_flap = fi
+	if fi == _hint_flap:
+		_hint_flap = -1
+	_drag_local = c.local
+	_drag_angle = puzzle.current_angle(fi)
+	_drag_last_sound = _drag_angle
+	_flap_materials[fi].set_shader_parameter("emission_amount", 0.12)
+
+
+## Every flap tile under a screen point that lies within a paper stack's thickness of the first hit, top first.
+func _pick_flap_stack(screen: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var cam: Camera3D = rig.camera
+	var from: Vector3 = cam.project_ray_origin(screen)
+	var to: Vector3 = from + cam.project_ray_normal(screen) * 200.0
+	var space: PhysicsDirectSpaceState3D = cam.get_world_3d().direct_space_state
+	var exclude: Array[RID] = []
+	var first_dist: float = -1.0
+	for i in 6:
+		var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
+		q.hit_back_faces = true
+		q.exclude = exclude
+		var hit: Dictionary = space.intersect_ray(q)
+		if hit.is_empty() or not hit.collider.has_meta("tile_id"):
+			break
+		var d: float = from.distance_to(hit.position)
+		if first_dist < 0.0:
+			first_dist = d
+		elif d - first_dist > 0.35:
+			break
+		exclude.append(hit.rid)
+		var t: int = int(hit.collider.get_meta("tile_id"))
+		var fi: int = puzzle.tile_flap[t]
+		if fi < 0:
+			# Base paper: anything below it cannot be meant.
+			break
+		var known: bool = false
+		for c in out:
+			known = known or c.flap == fi
+		if known:
+			continue
+		var s: OVHingeSolver = puzzle.solvers[puzzle.flap_island[fi]]
+		out.append({"flap": fi, "local": s.panel_transforms[puzzle.flap_panel[fi]].affine_inverse() * hit.position})
+	return out
+
+
+## For a pending multi-layer grab: picks the layer whose fold moves its grabbed point closest to the finger.
+func _resolve_candidates(screen: Vector2) -> void:
+	if screen.distance_to(_drag_start_screen) < 24.0:
+		return
+	var best: Dictionary = {}
+	var best_gain: float = 0.0
+	for c in _drag_candidates:
+		var fi: int = c.flap
+		var now: float = puzzle.current_angle(fi)
+		var d0: float = _screen_distance(fi, now, screen, c.local)
+		var dmin: float = d0
+		for a in _angle_samples(fi, 4.0):
+			dmin = minf(dmin, _screen_distance(fi, a, screen, c.local))
+		var gain: float = d0 - dmin
+		if gain > best_gain:
+			best_gain = gain
+			best = c
+	if not best.is_empty() and best_gain > 6.0:
+		_grab_flap(best)
+
+
+func _angle_samples(fi: int, step: float) -> PackedFloat32Array:
+	var angles: PackedFloat32Array = puzzle.flap_angles[fi]
+	var lo: float = angles[0]
+	var hi: float = angles[0]
+	for a in angles:
+		lo = minf(lo, a)
+		hi = maxf(hi, a)
+	var out: PackedFloat32Array = PackedFloat32Array()
+	var a2: float = lo
+	while a2 <= hi + 0.01:
+		out.append(a2)
+		a2 += step
+	return out
 
 
 func _on_dragged(screen: Vector2, rel: Vector2) -> void:
@@ -470,6 +610,10 @@ func _on_dragged(screen: Vector2, rel: Vector2) -> void:
 		return
 	if mode != Mode.DRAG_FOLD:
 		return
+	if _drag_flap < 0:
+		_resolve_candidates(screen)
+		if _drag_flap < 0:
+			return
 	var fi: int = _drag_flap
 	var angles: PackedFloat32Array = puzzle.flap_angles[fi]
 	var lo: float = angles[0]
@@ -503,12 +647,13 @@ func _on_dragged(screen: Vector2, rel: Vector2) -> void:
 		Game.audio.play("fold_soft", randf_range(0.95, 1.2), -8.0)
 
 
-func _screen_distance(fi: int, angle: float, screen: Vector2) -> float:
+func _screen_distance(fi: int, angle: float, screen: Vector2, local: Variant = null) -> float:
 	var s: OVHingeSolver = puzzle.solvers[puzzle.flap_island[fi]]
 	var h: int = puzzle.flap_hinge[fi]
 	var keep: float = s.hinge_angle[h]
 	s.hinge_angle[h] = angle
-	var world: Vector3 = s.panel_transforms[s.hinge_parent[h]] * s.hinge_local_transform(h) * _drag_local
+	var p: Vector3 = _drag_local if local == null else local
+	var world: Vector3 = s.panel_transforms[s.hinge_parent[h]] * s.hinge_local_transform(h) * p
 	s.hinge_angle[h] = keep
 	if rig.camera.is_position_behind(world):
 		return INF
@@ -518,6 +663,12 @@ func _screen_distance(fi: int, angle: float, screen: Vector2) -> float:
 func _on_drag_ended(_screen: Vector2, _velocity: Vector2) -> void:
 	if _orbiting:
 		_orbiting = false
+		return
+	if mode == Mode.DRAG_FOLD and _drag_flap < 0:
+		# Finger lifted before the drag picked one of the stacked flaps.
+		_drag_candidates = []
+		mode = Mode.IDLE
+		_refresh_highlight()
 		return
 	if mode != Mode.DRAG_FOLD:
 		return

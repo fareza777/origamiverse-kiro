@@ -45,9 +45,10 @@ func _ready() -> void:
 	var sky: Sky = Sky.new()
 	sky.sky_material = sky_mat
 	e.background_mode = Environment.BG_COLOR
-	# Brighter than the UI background on purpose: AgX tonemapping darkens it to match the studio panel.
-	e.background_color = Color("fbf9f5")
-	e.background_energy_multiplier = 1.25
+	# Cool blue-grey backdrop and a darker ground than any paper preset's light side, so a white sheet never
+	# blends into the background (white-on-white was hard to read on phones).
+	e.background_color = Color("cfd7ea")
+	e.background_energy_multiplier = 1.0
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	e.ambient_light_energy = 0.55
@@ -80,7 +81,7 @@ func _ready() -> void:
 	disc.radial_segments = 64
 	_ground.mesh = disc
 	var gm: StandardMaterial3D = StandardMaterial3D.new()
-	gm.albedo_color = Color("f3efe8")
+	gm.albedo_color = Color("b9c2d8")
 	gm.roughness = 0.95
 	_ground.material_override = gm
 	add_child(_ground)
@@ -108,6 +109,9 @@ func _ready() -> void:
 	_model_root.add_child(_pin_marker)
 	material = OVPaperMesh.make_material(OVPaperPresets.PRESETS[0])
 	material.set_shader_parameter("grain_scale", 22.0)
+	# Darker sheet outline and creases so the paper's shape reads at a glance.
+	material.set_shader_parameter("edge_strength", 0.6)
+	material.set_shader_parameter("crease_strength", 0.45)
 	camera_rig = OVOrbitCamera.new()
 	camera_rig.min_pitch = -20.0
 	add_child(camera_rig)

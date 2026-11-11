@@ -53,13 +53,26 @@ func _finger(p: Vector2, u: float, pressed: bool) -> void:
 func _draw() -> void:
 	var s: Vector2 = size
 	var u: float = minf(s.x, s.y) * 0.16
-	var o: Vector2 = Vector2(s.x * 0.5, s.y * 0.32)
 	draw_circle(Vector2(s.x * 0.5, s.y * 0.5), minf(s.x, s.y) * 0.46, Color(sea, 0.35))
 	match kind:
 		"kami": _draw_kami(s)
-		"fold": _draw_fold(u, o)
-		"walk": _draw_walk(u, o)
+		"fold":
+			var f: Array = _fit(s, 5.0, 3.0, 1.0)
+			_draw_fold(f[0], f[1])
+		"walk":
+			var f2: Array = _fit(s, 5.0, 4.0, 0.6)
+			_draw_walk(f2[0], f2[1])
 		"goal": _draw_goal(s, u)
+
+
+## Tile size and origin that fit a `cols` x `rows` isometric grid (plus `lift` tiles of height above it)
+## inside the control, centered. The diamond spans (cols + rows) * 0.87 tiles across.
+func _fit(s: Vector2, cols: float, rows: float, lift: float) -> Array:
+	var m: float = minf(s.x, s.y)
+	var u: float = minf(m * 0.16, s.x * 0.9 / ((cols + rows) * 0.87))
+	var height: float = ((cols + rows) * 0.5 + lift + 0.28) * u
+	var o: Vector2 = Vector2(s.x * 0.5 - (cols - rows) * 0.5 * 0.87 * u, s.y * 0.5 - height * 0.5 + lift * u)
+	return [u, o]
 
 
 func _draw_kami(s: Vector2) -> void:

@@ -9,6 +9,8 @@ const K = preload("res://addons/origamiverse_core/ui/ov_ui_kit.gd")
 var target: Callable = Callable()
 ## Optional drag hint: the finger slides by this screen offset (pixels) and back.
 var drag: Vector2 = Vector2.ZERO
+## Optional live drag end point (screen). When set, `drag` follows it every frame so camera moves keep the arrow right.
+var drag_target: Callable = Callable()
 var _t: float = 0.0
 var _card: PanelContainer
 var _label: Label
@@ -30,10 +32,11 @@ func _ready() -> void:
 	add_child(_card)
 
 
-func show_step(text: String, target_fn: Callable, drag_offset: Vector2 = Vector2.ZERO) -> void:
+func show_step(text: String, target_fn: Callable, drag_offset: Vector2 = Vector2.ZERO, drag_end_fn: Callable = Callable()) -> void:
 	_label.text = text
 	target = target_fn
 	drag = drag_offset
+	drag_target = drag_end_fn
 	_t = 0.0
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.3)
@@ -45,6 +48,13 @@ func _process(dt: float) -> void:
 	if not target.is_valid():
 		return
 	var p: Vector2 = target.call()
+	if drag_target.is_valid():
+		drag = (drag_target.call() as Vector2) - p
+		# A one-tile flap moves only a few dozen pixels on screen; draw the arrow long enough to read.
+		# Dragging past the end is fine: the fold clamps to its allowed angles.
+		var min_len: float = K.s(200)
+		if drag.length() > 1.0 and drag.length() < min_len:
+			drag = drag.normalized() * min_len
 	# Caption above the finger, kept on screen.
 	var vs: Vector2 = get_viewport_rect().size
 	var cs: Vector2 = _card.get_combined_minimum_size()

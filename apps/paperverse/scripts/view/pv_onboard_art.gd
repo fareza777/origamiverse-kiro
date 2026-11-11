@@ -92,18 +92,29 @@ func _draw_draw(s: Vector2, m: float) -> void:
 			draw_circle(tip, m * 0.05, Color(1, 1, 1, 0.5))
 			draw_circle(tip, m * 0.03, ink)
 			draw_circle(tip, m * 0.015, Color.WHITE)
-	# Legend.
+	# Legend: two "sample line + label" pairs, measured so they never overlap and centered under the sheet.
 	var ly: float = o.y + side + m * 0.07
-	_line(Vector2(o.x, ly), Vector2(o.x + m * 0.12, ly), mountain, w, m * 0.03, true)
-	draw_string(get_theme_default_font(), Vector2(o.x + m * 0.15, ly + m * 0.02), "Mountain", HORIZONTAL_ALIGNMENT_LEFT, -1, int(m * 0.055), ink)
-	_line(Vector2(o.x + side * 0.55, ly), Vector2(o.x + side * 0.55 + m * 0.12, ly), valley, w, m * 0.03, false)
-	draw_string(get_theme_default_font(), Vector2(o.x + side * 0.55 + m * 0.15, ly + m * 0.02), "Valley", HORIZONTAL_ALIGNMENT_LEFT, -1, int(m * 0.055), ink)
+	var font: Font = get_theme_default_font()
+	var fs: int = int(m * 0.05)
+	var sample: float = m * 0.1
+	var gap: float = m * 0.025
+	var mw: float = font.get_string_size("Mountain", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var vw: float = font.get_string_size("Valley", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var total: float = sample + gap + mw + m * 0.08 + sample + gap + vw
+	var x: float = s.x * 0.5 - total * 0.5
+	var ty: float = ly + fs * 0.35
+	_line(Vector2(x, ly), Vector2(x + sample, ly), mountain, w, m * 0.03, true)
+	draw_string(font, Vector2(x + sample + gap, ty), "Mountain", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
+	x += sample + gap + mw + m * 0.08
+	_line(Vector2(x, ly), Vector2(x + sample, ly), valley, w, m * 0.03, false)
+	draw_string(font, Vector2(x + sample + gap, ty), "Valley", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
 
 
 ## A square folding in half along its diagonal, in a simple oblique 3D view.
 func _draw_fold(s: Vector2, m: float) -> void:
-	var c: Vector2 = s * 0.5 + Vector2(0, m * 0.08)
-	var r: float = m * 0.34
+	var c: Vector2 = s * 0.5 + Vector2(0, m * 0.04)
+	# The sheet's side corners sit (2 * 0.87) r from the center; keep them inside the halo circle.
+	var r: float = m * 0.24
 	var k: float = 0.5 - 0.5 * cos(fmod(_t, 4.0) / 4.0 * TAU)
 	var ang: float = k * PI * 0.92
 	# Sheet corners in 3D (x right, y depth, z up); diagonal from (-1, -1) to (1, 1).

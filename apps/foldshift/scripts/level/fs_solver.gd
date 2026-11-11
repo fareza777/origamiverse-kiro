@@ -112,3 +112,39 @@ func all_cranes_collectible() -> bool:
 		if c == 0:
 			return false
 	return true
+
+
+## Next step on a shortest solution from a saved puzzle state (used by the in-game Hint button).
+## Returns {"kind": "fold", "flap": index, "angle": degrees}, {"kind": "walk", "tile": t} or {"kind": "none"}.
+## Builds its own FSPuzzle, so it is safe to call from a worker thread.
+static func next_step(level: FSLevelData, snap: Dictionary) -> Dictionary:
+	var p: FSPuzzle = FSPuzzle.new()
+	if not p.setup(level).ok:
+		return {"kind": "none"}
+	p.restore(snap)
+	var s: FSSolver = FSSolver.new()
+	if not s.solve(p):
+		return {"kind": "none"}
+	if s.solution.is_empty():
+		return {"kind": "walk", "tile": int(p.tile_of.get(level.goal, -1))}
+	var step: Dictionary = s.solution[0]
+	var fi: int = p.flap_index_by_name(step.flap)
+	var j: int = p.flap_angles[fi].find(step.angle)
+	# The solver picks some tile to fold from. Folding from where Kami stands is just as good when it keeps
+	# the remaining folds at par - 1; otherwise Kami has to walk to the solver's tile first.
+	var q: FSPuzzle = FSPuzzle.new()
+	q.setup(level)
+	q.restore(snap)
+	# The solver treats every seal Kami can reach as already broken. If the strip is still sealed, the next step
+	# is to walk onto its wax seal.
+	if q.is_locked(fi):
+		for i in level.seals.size():
+			if q.seal_broken_flags[i] == 0 and level.seals[i].unlocks.has(step.flap):
+				var seal_tile: int = int(q.tile_of.get(level.seals[i].at, -1))
+				if not q.path_to_tile(seal_tile).is_empty():
+					return {"kind": "walk", "tile": seal_tile, "reason": "seal"}
+	if q.try_fold(fi, j).ok:
+		var s2: FSSolver = FSSolver.new()
+		if s2.solve(q) and s2.par == s.par - 1:
+			return {"kind": "fold", "flap": fi, "angle": float(step.angle)}
+	return {"kind": "walk", "tile": int(step.stand)}

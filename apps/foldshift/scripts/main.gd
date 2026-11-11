@@ -34,7 +34,8 @@ func _ready() -> void:
 	overlay_layer.layer = 5
 	add_child(overlay_layer)
 	Game.achievement_unlocked.connect(_on_achievement)
-	# QA hooks (desktop): --level=<id> opens a level, --capture=<png> --delay=<s> saves a screenshot and quits.
+	# QA hooks (desktop): --level=<id> opens a level, --capture=<png> --delay=<s> saves a screenshot and quits,
+	# --hint[=<s>] presses the Hint button after <s> seconds (default 4).
 	var args: Dictionary = {}
 	for a in OS.get_cmdline_user_args():
 		var kv: PackedStringArray = a.trim_prefix("--").split("=", true, 1)
@@ -53,6 +54,8 @@ func _ready() -> void:
 		_show_launch_sequence()
 	if args.has("capture"):
 		_qa_capture(str(args.capture), float(args.get("delay", "3")))
+	if args.has("hint"):
+		get_tree().create_timer(float(args.hint) if str(args.hint).is_valid_float() else 4.0).timeout.connect(_show_hint)
 	Game.settings_changed.connect(_on_settings_changed)
 
 
@@ -329,6 +332,8 @@ func play_level(id: String, saved: Dictionary = {}, undo_used: bool = false) -> 
 	backdrop_level = ""
 	current_level = id
 	used_undo = undo_used
+	# A hint still planning for the previous world must not block the Hint button on this one.
+	_hint_busy = false
 	if not _load_world(id, true, saved):
 		show_levels(selected_chapter)
 		return
@@ -394,7 +399,7 @@ func _build_hud(L: FSLevelData) -> void:
 	var bottom: HBoxContainer = K.hbox(18)
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom.add_child(K.button("Undo", _on_undo, "CardButton", 220))
-	bottom.add_child(K.button("Hint", func() -> void: show_toast(L.hint, 5.0), "CardButton", 220))
+	bottom.add_child(K.button("Hint", _show_hint, "CardButton", 220))
 	bottom.add_child(K.button("Restart", restart_level, "CardButton", 220))
 	v.add_child(bottom)
 	_set_screen(root, "hud")
@@ -441,11 +446,17 @@ func _start_coach() -> void:
 	var coach: FSCoach = FSCoach.new()
 	screen.add_child(coach)
 	var w: FSWorld = world
-	var flap_t: int = w.flap_tile(0)
 	var goal_t: int = w.puzzle.tile_of[w.puzzle.level.goal]
-	var drag_dir: Vector2 = (w.tile_screen_position(goal_t) - w.tile_screen_position(flap_t)).normalized()
-	coach.show_step("Press the coral strip and drag it across the gap to fold a bridge.",
-		func() -> Vector2: return w.tile_screen_position(flap_t), drag_dir * K.s(240))
+	var from_angle: float = w.puzzle.current_angle(0)
+	var fold_to: float = from_angle
+	for a in w.puzzle.flap_angles[0]:
+		if not is_equal_approx(a, from_angle):
+			fold_to = a
+			break
+	w.set_hint_flap(0)
+	coach.show_step("This coral strip is paper you can fold. Press it and drag along the arrow to lay a bridge.",
+		func() -> Vector2: return w.flap_screen_point(0, from_angle), Vector2.ZERO,
+		func() -> Vector2: return w.flap_screen_point(0, fold_to))
 	w.folded.connect(func(_f: String) -> void:
 		if is_instance_valid(coach):
 			coach.show_step("Nice fold! Now tap the far island to walk Kami to the lantern.",
@@ -462,6 +473,75 @@ func _on_crane(i: int) -> void:
 	Game.add_stat("cranes")
 	if world.puzzle.level.cranes[i].side == 1:
 		Game.unlock("secret_keeper")
+
+
+# ------------------------------------------------------------ visual hint (Hint button)
+
+
+var _hint_coach: FSCoach
+var _hint_busy: bool = false
+
+
+## Shows the next step on the board: which strip to drag and where to, or which tile to walk to.
+## The step comes from FSSolver run on the current state, so it is always correct and on a shortest solution.
+func _show_hint() -> void:
+	if world == null or _hint_busy:
+		return
+	var w: FSWorld = world
+	var level_id: String = current_level
+	_hint_busy = true
+	if w.mode == FSWorld.Mode.INTRO:
+		# Pressed while the level is still unfolding: answer as soon as it settles instead of ignoring the tap.
+		await w.intro_finished
+		if not is_instance_valid(w) or world != w or current_level != level_id:
+			_hint_busy = false
+			return
+	if w.mode != FSWorld.Mode.IDLE:
+		_hint_busy = false
+		return
+	_clear_hint()
+	var step: Dictionary = await w.plan_hint()
+	_hint_busy = false
+	if not is_instance_valid(w) or world != w or current_level != level_id or screen == null:
+		return
+	match str(step.kind):
+		"fold":
+			var fi: int = step.flap
+			var from_angle: float = w.puzzle.current_angle(fi)
+			var to_angle: float = step.angle
+			var verb: String = "up into a wall" if absf(to_angle) > 45.0 and absf(to_angle) < 135.0 else "over"
+			w.set_hint_flap(fi)
+			_hint_coach = FSCoach.new()
+			screen.add_child(_hint_coach)
+			_hint_coach.show_step("Press the glowing strip and drag it along the arrow to fold it %s." % verb,
+				func() -> Vector2: return w.flap_screen_point(fi, from_angle), Vector2.ZERO,
+				func() -> Vector2: return w.flap_screen_point(fi, to_angle))
+		"walk":
+			var t: int = step.tile
+			_hint_coach = FSCoach.new()
+			screen.add_child(_hint_coach)
+			var goal: bool = t == w.puzzle.tile_of.get(w.puzzle.level.goal, -1)
+			var text: String = "Walk Kami here first: tap this tile."
+			if goal:
+				text = "Tap here to walk Kami to the lantern."
+			elif str(step.get("reason", "")) == "seal":
+				text = "Tap the wax seal to walk Kami onto it. That frees the sealed strip."
+			_hint_coach.show_step(text, func() -> Vector2: return w.tile_screen_position(t))
+		_:
+			show_toast(w.puzzle.level.hint, 5.0)
+			return
+	Game.audio.play("ui")
+	w.state_changed.connect(_clear_hint, CONNECT_ONE_SHOT)
+
+
+func _clear_hint() -> void:
+	if is_instance_valid(_hint_coach):
+		_hint_coach.queue_free()
+	_hint_coach = null
+	if world and is_instance_valid(world):
+		world.set_hint_flap(-1)
+		if world.state_changed.is_connected(_clear_hint):
+			world.state_changed.disconnect(_clear_hint)
 
 
 func restart_level() -> void:
@@ -672,7 +752,7 @@ func show_settings(scroll_to: float = 0.0) -> void:
 
 	var play: VBoxContainer = S.section("Gameplay")
 	S.rows(play).add_child(S.slider("Camera sensitivity", float(st.camera_speed), func(x: float) -> void: Game.set_setting("camera_speed", x),
-		0.5, 2.0, 0.1, func(x: float) -> String: return "%.1f�" % x))
+		0.5, 2.0, 0.1, func(x: float) -> String: return "%.1f×" % x))
 	S.rows(play).add_child(S.switch("Level hints", "Show each level's hint when it starts.", bool(st.auto_hints),
 		func(on: bool) -> void: Game.set_setting("auto_hints", on)))
 	S.rows(play).add_child(S.switch("Tutorial tips", "Guided finger hints on the first level.", bool(st.coach),
@@ -693,8 +773,12 @@ func show_settings(scroll_to: float = 0.0) -> void:
 
 	var data: VBoxContainer = S.section("Progress")
 	var stats: Dictionary = Game.data.stats
-	S.rows(data).add_child(S.info("%d stars � %d folds made � %d cranes found � %d/%d achievements" % [Game.total_stars(),
-		int(stats.folds), int(stats.cranes), Game.data.achievements.size(), Game.ACHIEVEMENTS.size()]))
+	var n_stars: int = Game.total_stars()
+	var n_folds: int = int(stats.folds)
+	var n_cranes: int = int(stats.cranes)
+	S.rows(data).add_child(S.info("%d %s · %d %s made · %d %s found · %d/%d achievements" % [
+		n_stars, "star" if n_stars == 1 else "stars", n_folds, "fold" if n_folds == 1 else "folds",
+		n_cranes, "crane" if n_cranes == 1 else "cranes", Game.data.achievements.size(), Game.ACHIEVEMENTS.size()]))
 	S.rows(data).add_child(S.divider())
 	S.rows(data).add_child(S.link("Reset progress", "Erase stars, cranes and achievements. Settings are kept.", func() -> void:
 		var cv: VBoxContainer = K.vbox(20)
@@ -803,3 +887,4 @@ func _on_achievement(id: String) -> void:
 	tw.tween_interval(2.4)
 	tw.tween_property(panel, "position:y", -panel.size.y - 20, 0.3)
 	tw.tween_callback(panel.queue_free)
+

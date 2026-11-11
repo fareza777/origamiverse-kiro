@@ -128,7 +128,7 @@ func show_home(scroll_to: int = 0) -> void:
 			continue
 		tg.add_child(_template_card(t))
 	v.add_child(tg)
-	var foot: Label = K.label("PaperVerse %s � F7 Developer � works offline" % OVPlatform.version(), "MutedLabel")
+	var foot: Label = K.label("PaperVerse %s · F7 Developer · works offline" % OVPlatform.version(), "MutedLabel")
 	v.add_child(K.spacer(10))
 	v.add_child(foot)
 	v.add_child(K.spacer(30))
@@ -173,7 +173,7 @@ func show_onboarding() -> void:
 	var pages: Array[Dictionary] = [
 		{"title": "Welcome to PaperVerse", "body": "A pocket origami studio. Design a crease pattern and watch real paper physics fold it in 3D.",
 			"art": PVOnboardArt.new().setup("welcome")},
-		{"title": "Draw creases", "body": "Pick Mountain or Valley and drag across the sheet. Lines snap to the grid, corners, midpoints and 22.5� angles.",
+		{"title": "Draw creases", "body": "Pick Mountain or Valley and drag across the sheet. Lines snap to the grid, corners, midpoints and 22.5° angles.",
 			"art": PVOnboardArt.new().setup("draw")},
 		{"title": "Fold it live", "body": "Open the Fold tab and slide from flat to folded. Drag the 3D view to orbit, pinch to zoom, double-tap to recenter.",
 			"art": PVOnboardArt.new().setup("fold")},
@@ -228,7 +228,7 @@ func show_settings(scroll_to: int = 0) -> void:
 
 	var ed: VBoxContainer = S.section("Studio")
 	var grids: PackedInt32Array = [4, 8, 16]
-	S.rows(ed).add_child(S.choice("Crease grid", "Snap spacing on the crease canvas.", PackedStringArray(["4 � 4", "8 � 8", "16 � 16"]),
+	S.rows(ed).add_child(S.choice("Crease grid", "Snap spacing on the crease canvas.", PackedStringArray(["4 × 4", "8 × 8", "16 × 16"]),
 		maxi(0, grids.find(int(st.grid))), func(i: int) -> void: Studio.set_setting("grid", grids[i])))
 	S.rows(ed).add_child(S.switch("Color creases in 3D", "New projects show mountains red and valleys blue on the folded paper.",
 		bool(st.default_colors), func(on: bool) -> void: Studio.set_setting("default_colors", on)))
@@ -292,7 +292,7 @@ func show_settings(scroll_to: int = 0) -> void:
 		sc.scroll_vertical = scroll_to
 
 
-const HELP_TEXT: String = "3D view\n� Drag to orbit, pinch to zoom, twist with two fingers to turn.\n� Double-tap to recenter.\n\nCrease canvas\n� Mountain and Valley draw creases. Cut slits the paper. Guide adds a flat helper line.\n� Erase removes a crease, Flip swaps mountain and valley.\n� Lines snap to the grid, existing vertices, midpoints, intersections and 22.5� angles.\n� Pinch to zoom the canvas, drag with two fingers to pan, double-tap to fit.\n\nFold tab\n� Soft paper bends like real paper and works with any pattern.\n� Rigid hinges fold flat panels exactly when the creases form a tree.\n� Pin a face to choose which part of the paper stays still.\n\nAnimate tab\n� Move the playhead, then Key fold or Key spin to store the current pose.\n� New keys use the selected ease. Length +1 s extends the clip.\n\nExport\n� FOLD keeps the crease pattern and folded shape for other origami tools.\n� GLB and OBJ open in Blender and most 3D apps. PNG saves the current view."
+const HELP_TEXT: String = "3D view\n• Drag to orbit, pinch to zoom, twist with two fingers to turn.\n• Double-tap to recenter.\n\nCrease canvas\n• Mountain and Valley draw creases. Cut slits the paper. Guide adds a flat helper line.\n• Erase removes a crease, Flip swaps mountain and valley.\n• Lines snap to the grid, existing vertices, midpoints, intersections and 22.5° angles.\n• Pinch to zoom the canvas, drag with two fingers to pan, double-tap to fit.\n\nFold tab\n• Soft paper bends like real paper and works with any pattern.\n• Rigid hinges fold flat panels exactly when the creases form a tree.\n• Pin a face to choose which part of the paper stays still.\n\nAnimate tab\n• Move the playhead, then Key fold or Key spin to store the current pose.\n• New keys use the selected ease. Length +1 s extends the clip.\n\nExport\n• FOLD keeps the crease pattern and folded shape for other origami tools.\n• GLB and OBJ open in Blender and most 3D apps. PNG saves the current view."
 
 
 func _show_text_page(title: String, text: String) -> void:

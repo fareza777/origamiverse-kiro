@@ -33,6 +33,7 @@ var _assign_toggle: CheckButton
 var _front_picker: ColorPickerButton
 var _back_picker: ColorPickerButton
 var _tool_buttons: Dictionary = {}
+var _guide: Label
 var _grid_buttons: Dictionary = {}
 var _ease_option: OptionButton
 var _loop: bool = true
@@ -181,17 +182,23 @@ func _build_crease_tab() -> Control:
 	for pair in [[PVCreaseCanvas.Tool.MOUNTAIN, "Mountain"], [PVCreaseCanvas.Tool.VALLEY, "Valley"], [PVCreaseCanvas.Tool.CUT, "Cut"],
 			[PVCreaseCanvas.Tool.FLAT, "Guide"], [PVCreaseCanvas.Tool.ERASE, "Erase"], [PVCreaseCanvas.Tool.FLIP, "Flip"]]:
 		var t: int = pair[0]
-		var b: Button = _chip(pair[1], func() -> void: canvas.tool = t, group)
+		var b: Button = _chip(pair[1], func() -> void:
+			canvas.tool = t
+			_update_guide(), group)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tools.add_child(b)
 		_tool_buttons[t] = b
 	v.add_child(tools)
+	_guide = K.label("", "MutedLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	_guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_guide)
 	canvas = PVCreaseCanvas.new()
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.set_pattern(project.pattern)
 	canvas.grid = int(Studio.settings.grid)
 	canvas.tool = PVCreaseCanvas.Tool.VALLEY
 	_tool_buttons[PVCreaseCanvas.Tool.VALLEY].set_pressed_no_signal(true)
+	_update_guide()
 	canvas.add_requested.connect(_on_add_segment)
 	canvas.erase_requested.connect(_on_erase_segment)
 	canvas.flip_requested.connect(_on_flip_segment)
@@ -219,6 +226,26 @@ func _build_crease_tab() -> Control:
 	return v
 
 
+const TOOL_GUIDES: Dictionary = {
+	PVCreaseCanvas.Tool.VALLEY: "Valley fold: the paper bends toward you, like a V. Drag across the sheet from point to point.",
+	PVCreaseCanvas.Tool.MOUNTAIN: "Mountain fold: the paper bends away from you, like a ridge. Drag across the sheet from point to point.",
+	PVCreaseCanvas.Tool.CUT: "Cut: drag to slit the paper along a line.",
+	PVCreaseCanvas.Tool.FLAT: "Guide: a helper line that never folds.",
+	PVCreaseCanvas.Tool.ERASE: "Erase: tap a crease to remove it.",
+	PVCreaseCanvas.Tool.FLIP: "Flip: tap a crease to swap mountain and valley.",
+}
+
+
+## One line under the crease tools: what the selected tool does, then the next step once creases exist.
+func _update_guide() -> void:
+	if _guide == null or canvas == null:
+		return
+	var text: String = TOOL_GUIDES.get(canvas.tool, "")
+	if not project.pattern.segments.is_empty() and project.fold_percent < 0.02:
+		text += "\nNext: open the Fold tab and drag the slider to fold it."
+	_guide.text = text
+
+
 func _build_fold_tab() -> Control:
 	var v: VBoxContainer = K.vbox(22)
 	v.add_child(K.spacer(6))
@@ -236,12 +263,16 @@ func _build_fold_tab() -> Control:
 		project.fold_percent = val
 		view.set_fold(val)
 		_fold_label.text = "%d%%" % roundi(val * 100.0)
+		_update_guide()
 		_mark_dirty())
 	h.add_child(_fold_slider)
 	_fold_label = K.label("%d%%" % roundi(project.fold_percent * 100.0), "HeaderLabel")
 	_fold_label.custom_minimum_size.x = K.s(110)
 	h.add_child(_fold_label)
 	v.add_child(h)
+	var how: Label = K.label("Drag the slider to fold: 0% is flat paper, 100% is fully folded. The 3D view above folds live.", "", HORIZONTAL_ALIGNMENT_LEFT)
+	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(how)
 	var presets: HBoxContainer = K.hbox(10)
 	for pct in [0, 25, 50, 75, 100]:
 		var pv: float = pct / 100.0
@@ -277,7 +308,7 @@ func _build_fold_tab() -> Control:
 	_stats_label = K.label("", "MutedLabel")
 	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_stats_label)
-	v.add_child(K.label("Soft paper bends like real paper and handles any pattern. Rigid hinges fold flat panels exactly when the creases form a tree (try Tray). Drag the 3D view to orbit, pinch to zoom, double-tap to recenter.", "MutedLabel"))
+	v.add_child(K.label("Soft paper: bends like real paper, works with any pattern. Rigid hinges: flat panels turn on straight creases (try Tray). Pin a face: tap a part of the model to keep it still. In the 3D view, drag to orbit, pinch to zoom, double-tap to recenter.", "MutedLabel"))
 	return v
 
 
@@ -398,6 +429,7 @@ func _rebuild_model() -> void:
 	view.set_spin(_spin_slider.value if _spin_slider else 0.0)
 	view.wake()
 	canvas.queue_redraw()
+	_update_guide()
 	if not r.ok:
 		show_status(r.message)
 	elif r.message != "":
