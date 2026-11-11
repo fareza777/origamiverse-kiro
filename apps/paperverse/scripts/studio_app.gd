@@ -2,11 +2,18 @@ extends Node
 ## PaperVerse global services (autoload "Studio"): theme, audio, settings and file dialogs.
 
 const SETTINGS_PATH: String = "user://paperverse_settings.json"
+const PACKAGE: String = "com.f7developer.paperverse"
+const TEXT_SCALES: PackedFloat32Array = [1.0, 1.15, 1.3]
+
+signal settings_changed
 
 var audio: OVPaperAudio
+var quality: OVRenderQuality
+var perf_overlay: OVPerfOverlay
 var theme: Theme
 var ui_scale: float = 1.0
-var settings: Dictionary = {"music": 0.35, "sfx": 0.8, "haptics": true, "grid": 8, "seen_intro": false}
+var settings: Dictionary = {"music": 0.35, "sfx": 0.8, "haptics": true, "grid": 8, "seen_intro": false, "quality": 0,
+	"show_fps": false, "battery_fps": false, "text_size": 0, "default_colors": true, "default_rigid": false}
 var palette: Dictionary = {
 	"bg": Color("f3f1ec"), "card": Color("fffdf8"), "ink": Color("23233a"), "muted": Color("85839a"),
 	"accent": Color("4a5fd6"), "accent_ink": Color("ffffff"),
@@ -16,14 +23,17 @@ var palette: Dictionary = {
 func _ready() -> void:
 	audio = OVPaperAudio.new()
 	add_child(audio)
+	# Drives the studio's 3D SubViewport (attached by PVStudio when it opens).
+	quality = OVRenderQuality.new()
+	add_child(quality)
 	var loaded: Dictionary = OVSaveStore.read_json(SETTINGS_PATH, settings)
 	for k in settings.keys():
 		if loaded.has(k):
 			settings[k] = loaded[k]
-	apply_settings()
 	ui_scale = OVThemeFactory.ui_scale_for(get_viewport().get_visible_rect().size)
-	theme = OVThemeFactory.build(palette, ui_scale)
 	OVUIKit.scale = ui_scale
+	rebuild_theme()
+	apply_settings()
 	OVUIKit.on_click = func() -> void:
 		audio.play("ui")
 		audio.haptic(8, 0.25)
@@ -34,12 +44,29 @@ func _exit_tree() -> void:
 	# OVUIKit.on_click is a static var holding a lambda bound to this node. Left set, it outlives the node
 	# at shutdown and Godot crashes (0xC0000005) or hangs while freeing static vars.
 	OVUIKit.on_click = Callable()
+	OVPaperMesh.release_shared()
 
 
 func apply_settings() -> void:
 	OVPaperAudio.set_bus_volume("Music", float(settings.music))
 	OVPaperAudio.set_bus_volume("SFX", float(settings.sfx))
 	audio.haptics_enabled = bool(settings.haptics)
+	if quality.mode != int(settings.quality):
+		quality.set_mode(int(settings.quality))
+	Engine.max_fps = 30 if bool(settings.battery_fps) else 0
+	if bool(settings.show_fps) and perf_overlay == null:
+		perf_overlay = OVPerfOverlay.new()
+		perf_overlay.quality = quality
+		add_child(perf_overlay)
+	elif not bool(settings.show_fps) and perf_overlay != null:
+		perf_overlay.queue_free()
+		perf_overlay = null
+	settings_changed.emit()
+
+
+func rebuild_theme() -> void:
+	var ts: float = TEXT_SCALES[clampi(int(settings.get("text_size", 0)), 0, TEXT_SCALES.size() - 1)]
+	theme = OVThemeFactory.build(palette, ui_scale, ts)
 
 
 func set_setting(key: String, value: Variant) -> void:

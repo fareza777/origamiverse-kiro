@@ -36,12 +36,15 @@ static func box(bg: Color, radius: int = 18, border: Color = Color.TRANSPARENT, 
 
 
 ## palette keys: bg, card, ink, muted, accent, accent_ink, danger
-static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
+## `text_scale` is the user's text-size preference (1.0 normal). Sizes follow Android type ramps at ~420 dpi:
+## body 16 sp = 40 px, secondary 14 sp = 34 px, headers 20 sp = 50 px on a 1080-px-wide screen.
+static func build(palette: Dictionary, scale: float = 1.0, text_scale: float = 1.0) -> Theme:
+	var ts: float = scale * text_scale
 	var t: Theme = Theme.new()
 	var regular: FontVariation = font(450)
 	var bold: FontVariation = font(700)
 	t.default_font = regular
-	t.default_font_size = int(30 * scale)
+	t.default_font_size = int(40 * ts)
 	var ink: Color = palette.get("ink", Color("23233a"))
 	var card: Color = palette.get("card", Color("fffaf0"))
 	var accent: Color = palette.get("accent", Color("e8604c"))
@@ -64,7 +67,7 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.set_color("icon_pressed_color", "Button", accent_ink)
 	t.set_color("icon_hover_color", "Button", accent_ink)
 	t.set_font("font", "Button", bold)
-	t.set_font_size("font_size", "Button", int(30 * scale))
+	t.set_font_size("font_size", "Button", int(38 * ts))
 
 	# Secondary buttons: paper card style (type variation).
 	t.add_type("CardButton")
@@ -92,7 +95,7 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.set_color("font_pressed_color", "ChipButton", accent_ink)
 	t.set_color("font_hover_pressed_color", "ChipButton", accent_ink)
 	t.set_color("font_disabled_color", "ChipButton", muted)
-	t.set_font_size("font_size", "ChipButton", int(24 * scale))
+	t.set_font_size("font_size", "ChipButton", int(32 * ts))
 	t.set_font("font", "ChipButton", bold)
 
 	# Panels and labels.
@@ -102,21 +105,21 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.add_type("TitleLabel")
 	t.set_type_variation("TitleLabel", "Label")
 	t.set_font("font", "TitleLabel", bold)
-	t.set_font_size("font_size", "TitleLabel", int(56 * scale))
+	t.set_font_size("font_size", "TitleLabel", int(72 * ts))
 	t.set_color("font_color", "TitleLabel", ink)
 	t.add_type("HeaderLabel")
 	t.set_type_variation("HeaderLabel", "Label")
 	t.set_font("font", "HeaderLabel", bold)
-	t.set_font_size("font_size", "HeaderLabel", int(36 * scale))
+	t.set_font_size("font_size", "HeaderLabel", int(48 * ts))
 	t.set_color("font_color", "HeaderLabel", ink)
 	t.add_type("MutedLabel")
 	t.set_type_variation("MutedLabel", "Label")
-	t.set_font_size("font_size", "MutedLabel", int(24 * scale))
+	t.set_font_size("font_size", "MutedLabel", int(34 * ts))
 	t.set_color("font_color", "MutedLabel", muted)
 	t.add_type("HudLabel")
 	t.set_type_variation("HudLabel", "Label")
 	t.set_font("font", "HudLabel", bold)
-	t.set_font_size("font_size", "HudLabel", int(30 * scale))
+	t.set_font_size("font_size", "HudLabel", int(38 * ts))
 	t.set_color("font_color", "HudLabel", ink)
 	t.set_color("font_outline_color", "HudLabel", card)
 	t.set_constant("outline_size", "HudLabel", int(8 * scale))
@@ -131,7 +134,7 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.set_icon("grabber_highlight", "HSlider", _circle_texture(int(44 * scale), accent.lightened(0.1), card))
 
 	# Check buttons render as switches.
-	t.set_font_size("font_size", "CheckButton", int(28 * scale))
+	t.set_font_size("font_size", "CheckButton", int(40 * ts))
 	t.set_color("font_color", "CheckButton", ink)
 	t.set_color("font_pressed_color", "CheckButton", ink)
 	t.set_color("font_hover_color", "CheckButton", ink)
@@ -150,7 +153,7 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.set_stylebox("focus", "LineEdit", box(card, int(16 * scale), accent, 3, 0.0, Vector2(18, 12) * scale))
 	t.set_color("font_color", "LineEdit", ink)
 	t.set_color("caret_color", "LineEdit", accent)
-	t.set_font_size("font_size", "LineEdit", int(30 * scale))
+	t.set_font_size("font_size", "LineEdit", int(40 * ts))
 
 	# Scroll bars: slim.
 	t.set_stylebox("scroll", "VScrollBar", box(Color(0, 0, 0, 0.05), 6, Color.TRANSPARENT, 0, 0.0, Vector2(3, 3)))
@@ -165,7 +168,7 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.set_color("font_color", "PopupMenu", ink)
 	t.set_color("font_hover_color", "PopupMenu", accent)
 	t.set_stylebox("hover", "PopupMenu", box(accent.lerp(card, 0.85), int(12 * scale)))
-	t.set_font_size("font_size", "PopupMenu", int(30 * scale))
+	t.set_font_size("font_size", "PopupMenu", int(40 * ts))
 	t.set_constant("v_separation", "PopupMenu", int(18 * scale))
 	t.set_stylebox("panel", "AcceptDialog", box(card, int(24 * scale), Color.TRANSPARENT, 0, 0.3, Vector2(24, 24) * scale))
 	t.set_stylebox("normal", "OptionButton", box(card, r, ink.lerp(card, 0.8), 2, 0.0, Vector2(22, 12) * scale))
@@ -174,10 +177,30 @@ static func build(palette: Dictionary, scale: float = 1.0) -> Theme:
 	t.set_stylebox("focus", "OptionButton", StyleBoxEmpty.new())
 	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		t.set_color(c, "OptionButton", ink)
-	t.set_font_size("font_size", "OptionButton", int(26 * scale))
+	t.set_font_size("font_size", "OptionButton", int(36 * ts))
 
 	t.set_stylebox("panel", "TooltipPanel", box(ink, 12, Color.TRANSPARENT, 0, 0.2, Vector2(12, 8)))
 	t.set_color("font_color", "TooltipLabel", card)
+
+	# Settings: accent section captions and flat, left-aligned list rows.
+	t.add_type("SectionLabel")
+	t.set_type_variation("SectionLabel", "Label")
+	t.set_font("font", "SectionLabel", bold)
+	t.set_font_size("font_size", "SectionLabel", int(32 * ts))
+	t.set_color("font_color", "SectionLabel", accent)
+	t.add_type("RowButton")
+	t.set_type_variation("RowButton", "Button")
+	var row_pad: Vector2 = Vector2(8, 18) * scale
+	t.set_stylebox("normal", "RowButton", box(Color(card, 0.0), int(18 * scale), Color.TRANSPARENT, 0, 0.0, row_pad))
+	t.set_stylebox("hover", "RowButton", box(ink.lerp(card, 0.94), int(18 * scale), Color.TRANSPARENT, 0, 0.0, row_pad))
+	t.set_stylebox("pressed", "RowButton", box(accent.lerp(card, 0.86), int(18 * scale), Color.TRANSPARENT, 0, 0.0, row_pad))
+	t.set_stylebox("disabled", "RowButton", box(Color(card, 0.0), int(18 * scale), Color.TRANSPARENT, 0, 0.0, row_pad))
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+		t.set_color(c, "RowButton", ink)
+	t.set_color("font_disabled_color", "RowButton", muted)
+	t.set_font("font", "RowButton", regular)
+	t.set_font_size("font_size", "RowButton", int(40 * ts))
+	t.set_constant("h_separation", "RowButton", int(20 * scale))
 	return t
 
 

@@ -5,6 +5,7 @@ extends Node3D
 const SEA_SHADER: Shader = preload("res://scripts/world/sea.gdshader")
 
 var sun: DirectionalLight3D
+var _clouds: Array[Node3D] = []
 var env: Environment
 
 
@@ -49,6 +50,8 @@ func build(style: Dictionary, puzzle: FSPuzzle, bounds: AABB, rng_seed: int) -> 
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
 	add_child(sun)
+	if Game.quality:
+		Game.quality.register_light(sun)
 
 	var center: Vector3 = bounds.get_center()
 	var sea: MeshInstance3D = MeshInstance3D.new()
@@ -61,6 +64,7 @@ func build(style: Dictionary, puzzle: FSPuzzle, bounds: AABB, rng_seed: int) -> 
 	sm.shader = SEA_SHADER
 	sm.set_shader_parameter("color_a", style.sea_a)
 	sm.set_shader_parameter("color_b", style.sea_b)
+	sm.set_shader_parameter("noise_tex", OVPaperMesh.grain_texture())
 	sea.material_override = sm
 	sea.position = Vector3(center.x, bounds.position.y - 5.0, center.z)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -159,7 +163,7 @@ func _scatter_props(style: Dictionary, bounds: AABB, rng_seed: int) -> void:
 		c.position = center + Vector3(cos(ang3), 0, sin(ang3)) * (radius + rng.randf_range(6.0, 18.0)) + Vector3(0, rng.randf_range(3.0, 7.0), 0)
 		c.scale = Vector3.ONE * rng.randf_range(1.2, 2.4)
 		c.set_meta("drift", rng.randf_range(0.15, 0.35))
-		c.add_to_group("fs_clouds")
+		_clouds.append(c)
 		add_child(c)
 
 
@@ -176,6 +180,5 @@ func _model(name: String) -> Node3D:
 
 
 func _process(dt: float) -> void:
-	for c in get_tree().get_nodes_in_group("fs_clouds"):
-		var n: Node3D = c
-		n.position.x += float(n.get_meta("drift")) * dt
+	for c in _clouds:
+		c.position.x += float(c.get_meta("drift")) * dt

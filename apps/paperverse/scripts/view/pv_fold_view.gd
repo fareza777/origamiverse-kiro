@@ -29,6 +29,9 @@ var _last_positions: PackedVector3Array = PackedVector3Array()
 var _budget_usec: int = 7000
 var _pin_marker: MeshInstance3D
 var _stats_timer: float = 0.0
+var sun: DirectionalLight3D
+## The pick shape (concave BVH) is rebuilt only when the paper is at rest, not every simulated frame.
+var _pick_dirty: bool = true
 
 
 func _ready() -> void:
@@ -53,7 +56,7 @@ func _ready() -> void:
 	e.glow_intensity = 0.2
 	env.environment = e
 	add_child(env)
-	var sun: DirectionalLight3D = DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-58, -30, 0)
 	sun.light_energy = 1.15
 	sun.light_color = Color("fff6e8")
@@ -200,6 +203,9 @@ func _process(dt: float) -> void:
 			settled.emit()
 		else:
 			_step_soft(dt)
+	if sleeping and _pick_dirty:
+		_pick_dirty = false
+		OVCollisionSync.sync_concave(_pick_shape, paper.collision_faces())
 	_ground_y = lerpf(_ground_y, _lowest_y() - 0.03, 1.0 - exp(-dt * 6.0))
 	_ground.position.y = _ground_y - 0.01
 	_stats_timer -= dt
@@ -240,7 +246,7 @@ func _update_mesh() -> void:
 		paper.update_from_hinge_solver(rigid_solver)
 	else:
 		paper.update_from_vertices(soft.positions)
-	OVCollisionSync.sync_concave(_pick_shape, paper.collision_faces())
+	_pick_dirty = true
 	var pin_face_index: int = soft.pinned_face
 	if pin_face_index >= 0:
 		var f: PackedInt32Array = doc.faces[pin_face_index]
@@ -260,6 +266,9 @@ func _lowest_y() -> float:
 
 ## Face index under a screen point of the SubViewport, or -1.
 func pick_face(screen: Vector2) -> int:
+	if _pick_dirty:
+		_pick_dirty = false
+		OVCollisionSync.sync_concave(_pick_shape, paper.collision_faces())
 	var hit: Dictionary = OVCollisionSync.pick(camera_rig.camera, screen)
 	if hit.is_empty() or not hit.has("face_index"):
 		return -1

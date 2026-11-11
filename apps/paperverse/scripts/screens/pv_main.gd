@@ -23,6 +23,7 @@ func _ready() -> void:
 			studio._select_tab(str(args.tab))
 	else:
 		show_home()
+		_show_launch_sequence()
 	if args.has("capture"):
 		_qa_capture(str(args.capture), float(args.get("delay", "3")))
 
@@ -41,6 +42,16 @@ func autosave() -> void:
 
 
 func go_back() -> void:
+	for c in get_children():
+		if c is OVOnboarding:
+			var ob: OVOnboarding = c
+			if ob.index > 0:
+				ob.show_page(ob.index - 1)
+			else:
+				ob._finish()
+			return
+		if c is OVSplash:
+			return
 	if _overlay:
 		_close_overlay()
 	elif studio:
@@ -48,6 +59,8 @@ func go_back() -> void:
 			studio.close_overlay()
 		else:
 			close_studio()
+	elif home and home.has_meta("settings"):
+		show_home()
 	else:
 		get_tree().quit()
 
@@ -55,9 +68,8 @@ func go_back() -> void:
 # ------------------------------------------------------------ home
 
 
-func show_home() -> void:
-	if home:
-		home.queue_free()
+func show_home(scroll_to: int = 0) -> void:
+	_clear_screen()
 	home = Control.new()
 	home.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(home)
@@ -67,18 +79,26 @@ func show_home() -> void:
 	home.add_child(bg)
 	var root: MarginContainer = K.screen_root()
 	home.add_child(root)
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	root.add_child(scroll)
-	var v: VBoxContainer = K.vbox(26)
+	var outer: VBoxContainer = K.vbox(18)
+	root.add_child(outer)
+	var head: HBoxContainer = K.hbox(16)
+	var title: Label = K.label("PaperVerse", "TitleLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	title.add_theme_font_size_override("font_size", int(K.s(92)))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var sb: Button = K.button("Settings", show_settings, "CardButton", 220)
+	sb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(sb)
+	outer.add_child(head)
+	var scroll: ScrollContainer = K.scroll()
+	outer.add_child(scroll)
+	var v: VBoxContainer = K.vbox(28)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(v)
-	var title: Label = K.label("PaperVerse", "TitleLabel", HORIZONTAL_ALIGNMENT_LEFT)
-	title.add_theme_font_size_override("font_size", int(K.s(96)))
-	v.add_child(title)
-	v.add_child(K.label("3D Origami Studio  ·  draw creases, fold them live, export anywhere", "MutedLabel", HORIZONTAL_ALIGNMENT_LEFT))
+	var sub: Label = K.label("Draw creases, watch them fold live in 3D, animate and export.", "MutedLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	v.add_child(sub)
 	var actions: HBoxContainer = K.hbox(16)
-	var nb: Button = K.button("New sheet", func() -> void: open_project(PVProject.from_template(PVTemplates.by_id("blank"))))
+	var nb: Button = K.button("New sheet", func() -> void: open_project(_new_project(PVTemplates.by_id("blank"))))
 	nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actions.add_child(nb)
 	var ib: Button = K.button("Import FOLD", _import, "CardButton")
@@ -98,6 +118,7 @@ func show_home() -> void:
 		v.add_child(pg)
 
 	v.add_child(K.label("Templates", "HeaderLabel", HORIZONTAL_ALIGNMENT_LEFT))
+	v.add_child(K.label("Tap a pattern to open it folded. Every crease stays editable.", "MutedLabel", HORIZONTAL_ALIGNMENT_LEFT))
 	var tg: GridContainer = GridContainer.new()
 	tg.columns = 2
 	tg.add_theme_constant_override("h_separation", int(K.s(18)))
@@ -107,43 +128,204 @@ func show_home() -> void:
 			continue
 		tg.add_child(_template_card(t))
 	v.add_child(tg)
-
-	var about: PanelContainer = PanelContainer.new()
-	var av: VBoxContainer = K.vbox(10)
-	av.add_child(K.label("About", "HeaderLabel", HORIZONTAL_ALIGNMENT_LEFT))
-	av.add_child(K.label("PaperVerse %s by F7 Developer, built on OrigamiVerse Core. Works offline; projects stay on this device. No accounts, no ads, no data collection." % ProjectSettings.get_setting("application/config/version"), "", HORIZONTAL_ALIGNMENT_LEFT))
-	av.add_child(K.label("Classic patterns adapted from Origami Simulator examples by Amanda Ghassaei (MIT). FOLD format by Erik Demaine et al. Font: Outfit (OFL).", "MutedLabel", HORIZONTAL_ALIGNMENT_LEFT))
-	for key in ["music", "sfx"]:
-		var h: HBoxContainer = K.hbox(16)
-		var l: Label = K.label("Ambience" if key == "music" else "Sounds", "", HORIZONTAL_ALIGNMENT_LEFT)
-		l.custom_minimum_size.x = K.s(200)
-		h.add_child(l)
-		var sl: HSlider = HSlider.new()
-		sl.min_value = 0.0
-		sl.max_value = 1.0
-		sl.step = 0.05
-		sl.value = float(Studio.settings[key])
-		sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		sl.custom_minimum_size.y = K.s(56)
-		var k2: String = key
-		sl.value_changed.connect(func(val: float) -> void: Studio.set_setting(k2, val))
-		h.add_child(sl)
-		av.add_child(h)
-	var hp: CheckButton = CheckButton.new()
-	hp.text = "Vibration"
-	hp.button_pressed = bool(Studio.settings.haptics)
-	hp.focus_mode = Control.FOCUS_NONE
-	hp.toggled.connect(func(on: bool) -> void: Studio.set_setting("haptics", on))
-	av.add_child(hp)
-	about.add_child(av)
-	v.add_child(about)
+	var foot: Label = K.label("PaperVerse %s � F7 Developer � works offline" % OVPlatform.version(), "MutedLabel")
+	v.add_child(K.spacer(10))
+	v.add_child(foot)
+	v.add_child(K.spacer(30))
 
 	_toast = K.label("", "MutedLabel")
 	_toast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(_toast)
+	outer.add_child(_toast)
 	K.fade_in(home)
+	if scroll_to > 0:
+		await get_tree().process_frame
+		scroll.scroll_vertical = scroll_to
 
+
+func _clear_screen() -> void:
+	if home:
+		home.queue_free()
+		home = null
+
+
+## New project from a template with the user's defaults applied.
+func _new_project(t: Dictionary) -> PVProject:
+	var p: PVProject = PVProject.from_template(t)
+	p.show_assignment = bool(Studio.settings.default_colors)
+	p.rigid = bool(Studio.settings.default_rigid)
+	return p
+
+
+# ------------------------------------------------------------ launch, onboarding
+
+
+func _show_launch_sequence() -> void:
+	var splash: OVSplash = OVSplash.new().setup(load("res://assets/splash/emblem.png"), "PaperVerse",
+		"3D Origami Studio", Studio.palette, 0.9)
+	splash.theme = Studio.theme
+	add_child(splash)
+	splash.finished.connect(func() -> void:
+		if not bool(Studio.settings.seen_intro):
+			show_onboarding())
+
+
+func show_onboarding() -> void:
+	var pages: Array[Dictionary] = [
+		{"title": "Welcome to PaperVerse", "body": "A pocket origami studio. Design a crease pattern and watch real paper physics fold it in 3D.",
+			"art": PVOnboardArt.new().setup("welcome")},
+		{"title": "Draw creases", "body": "Pick Mountain or Valley and drag across the sheet. Lines snap to the grid, corners, midpoints and 22.5� angles.",
+			"art": PVOnboardArt.new().setup("draw")},
+		{"title": "Fold it live", "body": "Open the Fold tab and slide from flat to folded. Drag the 3D view to orbit, pinch to zoom, double-tap to recenter.",
+			"art": PVOnboardArt.new().setup("fold")},
+		{"title": "Animate", "body": "Set fold and spin keys on the timeline, choose an ease, and press Play. The paper refolds in real time.",
+			"art": PVOnboardArt.new().setup("animate")},
+		{"title": "Export anywhere", "body": "Save as FOLD for origami tools, GLB or OBJ for 3D apps, or a PNG snapshot. Projects stay on your device.",
+			"art": PVOnboardArt.new().setup("export")},
+	]
+	var ob: OVOnboarding = OVOnboarding.new().setup(pages, Studio.palette, "Start folding")
+	ob.theme = Studio.theme
+	add_child(ob)
+	ob.finished.connect(func() -> void: Studio.set_setting("seen_intro", true))
+
+
+# ------------------------------------------------------------ settings
+
+
+func show_settings(scroll_to: int = 0) -> void:
+	var S = OVSettingsKit
+	var st: Dictionary = Studio.settings
+	_clear_screen()
+	home = Control.new()
+	home.set_meta("settings", true)
+	home.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(home)
+	var bg: ColorRect = ColorRect.new()
+	bg.color = Studio.palette.bg
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	home.add_child(bg)
+	var root: MarginContainer = K.screen_root()
+	home.add_child(root)
+	var v: VBoxContainer = K.vbox(20)
+	root.add_child(v)
+	var head: HBoxContainer = K.hbox(24)
+	head.add_child(K.button("Back", func() -> void: show_home(), "CardButton", 180))
+	var hl: Label = K.label("Settings", "HeaderLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	hl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(hl)
+	v.add_child(head)
+	var sc: ScrollContainer = K.scroll()
+	v.add_child(sc)
+	var list: VBoxContainer = K.vbox(30)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(list)
+
+	var snd: VBoxContainer = S.section("Sound")
+	S.rows(snd).add_child(S.slider("Ambience", float(st.music), func(x: float) -> void: Studio.set_setting("music", x)))
+	S.rows(snd).add_child(S.slider("Sounds", float(st.sfx), func(x: float) -> void: Studio.set_setting("sfx", x)))
+	S.rows(snd).add_child(S.switch("Vibration", "Short haptic taps on folds and buttons.", bool(st.haptics),
+		func(on: bool) -> void: Studio.set_setting("haptics", on)))
+	list.add_child(snd)
+
+	var ed: VBoxContainer = S.section("Studio")
+	var grids: PackedInt32Array = [4, 8, 16]
+	S.rows(ed).add_child(S.choice("Crease grid", "Snap spacing on the crease canvas.", PackedStringArray(["4 � 4", "8 � 8", "16 � 16"]),
+		maxi(0, grids.find(int(st.grid))), func(i: int) -> void: Studio.set_setting("grid", grids[i])))
+	S.rows(ed).add_child(S.switch("Color creases in 3D", "New projects show mountains red and valleys blue on the folded paper.",
+		bool(st.default_colors), func(on: bool) -> void: Studio.set_setting("default_colors", on)))
+	S.rows(ed).add_child(S.switch("Start in rigid mode", "New projects fold flat panels on exact hinges when the pattern allows it.",
+		bool(st.default_rigid), func(on: bool) -> void: Studio.set_setting("default_rigid", on)))
+	list.add_child(ed)
+
+	var gfx: VBoxContainer = S.section("Graphics and battery")
+	S.rows(gfx).add_child(S.choice("3D quality", "Auto keeps folding smooth by adjusting 3D sharpness to your phone.",
+		OVRenderQuality.MODE_NAMES, int(st.quality), func(i: int) -> void: Studio.set_setting("quality", i)))
+	S.rows(gfx).add_child(S.switch("Battery saver", "Limit to 30 frames per second.", bool(st.battery_fps),
+		func(on: bool) -> void: Studio.set_setting("battery_fps", on)))
+	S.rows(gfx).add_child(S.switch("Show FPS", "Frame rate and render time in the corner.", bool(st.show_fps),
+		func(on: bool) -> void: Studio.set_setting("show_fps", on)))
+	list.add_child(gfx)
+
+	var acc: VBoxContainer = S.section("Accessibility")
+	S.rows(acc).add_child(S.choice("Text size", "", PackedStringArray(["Normal", "Large", "Extra large"]), int(st.text_size),
+		func(i: int) -> void:
+			Studio.set_setting("text_size", i)
+			Studio.rebuild_theme()
+			theme = Studio.theme
+			show_settings(sc.scroll_vertical)))
+	list.add_child(acc)
+
+	var help: VBoxContainer = S.section("Help")
+	S.rows(help).add_child(S.link("How PaperVerse works", "Replay the five-step introduction.", show_onboarding))
+	S.rows(help).add_child(S.divider())
+	S.rows(help).add_child(S.link("Gestures and tips", "Orbit, zoom, pin, snapping and solver modes.", func() -> void:
+		_show_text_page("Gestures and tips", HELP_TEXT)))
+	list.add_child(help)
+
+	list.add_child(S.support_section("PaperVerse", Studio.PACKAGE,
+		"Design origami crease patterns and fold them live in 3D with PaperVerse:", _notify))
+
+	var data: VBoxContainer = S.section("Storage")
+	var projects: Array[Dictionary] = PVProjectStore.list()
+	S.rows(data).add_child(S.info("%d saved project%s on this device. Projects autosave while you work." % [projects.size(), "" if projects.size() == 1 else "s"]))
+	if not projects.is_empty():
+		S.rows(data).add_child(S.divider())
+		S.rows(data).add_child(S.link("Delete all projects", "Templates stay available. This cannot be undone.", func() -> void:
+			var cv: VBoxContainer = K.vbox(16)
+			cv.add_child(K.label("Delete all %d projects?" % projects.size(), "HeaderLabel"))
+			cv.add_child(K.label("Exported files are not affected.", "MutedLabel"))
+			cv.add_child(K.button("Delete everything", func() -> void:
+				for info in PVProjectStore.list():
+					PVProjectStore.delete(str(info.id))
+				_close_overlay()
+				show_settings()))
+			cv.add_child(K.button("Cancel", _close_overlay, "CardButton"))
+			_open_overlay(cv), ""))
+	list.add_child(data)
+
+	list.add_child(S.about_section("PaperVerse", "3D Origami Studio. Draw crease patterns, fold them with real-time paper physics, animate and export.",
+		"PaperVerse is built with Godot Engine (MIT) and OrigamiVerse Core.\n\nClassic patterns adapted from Origami Simulator examples by Amanda Ghassaei (MIT).\n\nFOLD file format by Erik Demaine, Jason Ku and Robert Lang.\n\nFont: Outfit by the Outfit Project Authors, SIL Open Font License 1.1.\n\nSounds are synthesized by the app.",
+		_show_text_page))
+	list.add_child(K.spacer(40))
+	K.fade_in(home)
+	if scroll_to > 0:
+		await get_tree().process_frame
+		sc.scroll_vertical = scroll_to
+
+
+const HELP_TEXT: String = "3D view\n� Drag to orbit, pinch to zoom, twist with two fingers to turn.\n� Double-tap to recenter.\n\nCrease canvas\n� Mountain and Valley draw creases. Cut slits the paper. Guide adds a flat helper line.\n� Erase removes a crease, Flip swaps mountain and valley.\n� Lines snap to the grid, existing vertices, midpoints, intersections and 22.5� angles.\n� Pinch to zoom the canvas, drag with two fingers to pan, double-tap to fit.\n\nFold tab\n� Soft paper bends like real paper and works with any pattern.\n� Rigid hinges fold flat panels exactly when the creases form a tree.\n� Pin a face to choose which part of the paper stays still.\n\nAnimate tab\n� Move the playhead, then Key fold or Key spin to store the current pose.\n� New keys use the selected ease. Length +1 s extends the clip.\n\nExport\n� FOLD keeps the crease pattern and folded shape for other origami tools.\n� GLB and OBJ open in Blender and most 3D apps. PNG saves the current view."
+
+
+func _show_text_page(title: String, text: String) -> void:
+	var cv: VBoxContainer = K.vbox(20)
+	cv.add_child(K.label(title, "HeaderLabel"))
+	var sc: ScrollContainer = K.scroll()
+	sc.custom_minimum_size.y = K.s(1000)
+	var l: Label = K.label(text, "", HORIZONTAL_ALIGNMENT_LEFT)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(l)
+	cv.add_child(sc)
+	cv.add_child(K.button("Close", _close_overlay))
+	_open_overlay(cv)
+
+
+func _notify(text: String) -> void:
+	var p: PanelContainer = PanelContainer.new()
+	p.theme = Studio.theme
+	p.add_theme_stylebox_override("panel", OVThemeFactory.box(Studio.palette.ink, int(K.s(26)), Color.TRANSPARENT, 0, 0.25, Vector2(K.s(30), K.s(20))))
+	var l: Label = K.label(text, "")
+	l.add_theme_color_override("font_color", Color.WHITE)
+	p.add_child(l)
+	add_child(p)
+	await get_tree().process_frame
+	var vs: Vector2 = get_viewport_rect().size
+	p.position = Vector2((vs.x - p.size.x) * 0.5, vs.y - p.size.y - K.s(220))
+	p.modulate.a = 0.0
+	var tw: Tween = p.create_tween()
+	tw.tween_property(p, "modulate:a", 1.0, 0.2)
+	tw.tween_interval(2.2)
+	tw.tween_property(p, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(p.queue_free)
 
 func _template_card(t: Dictionary) -> Control:
 	var card: PanelContainer = PanelContainer.new()
@@ -158,7 +340,7 @@ func _template_card(t: Dictionary) -> Control:
 	d.custom_minimum_size.x = K.s(380)
 	cv.add_child(d)
 	var tt: Dictionary = t
-	cv.add_child(K.button("Fold it", func() -> void: open_project(PVProject.from_template(tt))))
+	cv.add_child(K.button("Fold it", func() -> void: open_project(_new_project(tt))))
 	return card
 
 
@@ -268,9 +450,7 @@ func _close_overlay() -> void:
 
 
 func open_project(p: PVProject) -> void:
-	if home:
-		home.queue_free()
-		home = null
+	_clear_screen()
 	studio = PVStudio.new()
 	add_child(studio)
 	studio.open(p)

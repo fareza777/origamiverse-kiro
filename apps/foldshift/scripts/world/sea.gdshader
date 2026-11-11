@@ -1,24 +1,14 @@
 // Stylized paper sea: banded, gently moving folds of color under the floating islands.
+// Noise comes from a tileable texture (OVPaperMesh.grain_texture): per-pixel hash noise on a full-screen
+// plane cost ~25 ms per frame on an Adreno 610. Lighting is Lambert-only for the same reason.
 shader_type spatial;
-render_mode cull_disabled, specular_schlick_ggx;
+render_mode cull_back, diffuse_lambert, specular_disabled;
 
 uniform vec3 color_a : source_color = vec3(0.62, 0.83, 0.9);
 uniform vec3 color_b : source_color = vec3(0.85, 0.94, 0.95);
 uniform float band_scale = 0.22;
 uniform float speed = 0.12;
-
-float hash12(vec2 p) {
-	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-	p3 += dot(p3, p3.yzx + 33.33);
-	return fract((p3.x + p3.y) * p3.z);
-}
-
-float vnoise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	return mix(mix(hash12(i), hash12(i + vec2(1, 0)), u.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), u.x), u.y);
-}
+uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 
 varying vec3 wpos;
 
@@ -28,13 +18,13 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 p = wpos.xz * band_scale;
-	float n = vnoise(p + vec2(TIME * speed, TIME * speed * 0.6)) * 0.6 + vnoise(p * 2.3 - TIME * speed) * 0.4;
+	vec2 p = wpos.xz * band_scale * 0.0625;
+	float n = texture(noise_tex, p + vec2(TIME * speed, TIME * speed * 0.6) * 0.0625).r * 0.6
+		+ texture(noise_tex, p * 2.3 - TIME * speed * 0.0625).r * 0.4;
 	float bands = floor(n * 5.0) / 5.0;
 	float dist = length(wpos.xz) * 0.012;
 	vec3 col = mix(color_a, color_b, bands);
 	col = mix(col, color_b, clamp(dist, 0.0, 0.6));
 	ALBEDO = col;
-	ROUGHNESS = 0.7;
-	SPECULAR = 0.3;
+	ROUGHNESS = 0.9;
 }

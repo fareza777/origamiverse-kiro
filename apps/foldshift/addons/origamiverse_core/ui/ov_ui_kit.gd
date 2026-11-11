@@ -5,6 +5,8 @@ extends RefCounted
 
 static var scale: float = 1.0
 static var on_click: Callable = Callable()
+## Last time (ms) a touch-scroll moved content. Buttons ignore the release that ends a scroll drag.
+static var _scroll_moved_ms: int = -100000
 
 
 static func s(v: float) -> float:
@@ -16,13 +18,44 @@ static func button(text: String, cb: Callable, variation: String = "", min_w: fl
 	b.text = text
 	if variation != "":
 		b.theme_type_variation = variation
-	b.custom_minimum_size = Vector2(s(min_w), s(96))
+	b.custom_minimum_size = Vector2(s(min_w), s(112))
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func() -> void:
+		if Time.get_ticks_msec() - _scroll_moved_ms < 120:
+			return
 		if on_click.is_valid():
 			on_click.call()
 		cb.call())
 	return b
+
+
+## Vertical ScrollContainer that scrolls by dragging anywhere on its content, including over buttons and cards.
+## Godot only scrolls when drag events reach the container, so every descendant that would stop them is
+## switched to MOUSE_FILTER_PASS (also for children added later).
+static func scroll() -> ScrollContainer:
+	var sc: ScrollContainer = ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.scroll_deadzone = int(s(18))
+	sc.get_v_scroll_bar().value_changed.connect(func(_v: float) -> void:
+		# A tap that stops a fling or ends a drag must not press the button under the finger.
+		_scroll_moved_ms = Time.get_ticks_msec())
+	sc.child_entered_tree.connect(func(n: Node) -> void: pass_mouse(n))
+	return sc
+
+
+## Makes `root` and its descendants pass mouse/touch events up to their parents (sliders and line edits keep STOP).
+static func pass_mouse(root: Node) -> void:
+	if root is Control and not (root is Slider or root is LineEdit or root is ScrollBar or root is TextEdit) \
+			and not root.has_meta("ov_keep_input"):
+		var c: Control = root
+		if c.mouse_filter == Control.MOUSE_FILTER_STOP:
+			c.mouse_filter = Control.MOUSE_FILTER_PASS
+	for ch in root.get_children():
+		pass_mouse(ch)
+	if not root.child_entered_tree.is_connected(pass_mouse):
+		root.child_entered_tree.connect(pass_mouse)
 
 
 static func label(text: String, variation: String = "", align: int = HORIZONTAL_ALIGNMENT_CENTER) -> Label:

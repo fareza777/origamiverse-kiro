@@ -50,8 +50,46 @@ func _ready() -> void:
 			_: show_title()
 	else:
 		show_title()
+		_show_launch_sequence()
 	if args.has("capture"):
 		_qa_capture(str(args.capture), float(args.get("delay", "3")))
+	Game.settings_changed.connect(_on_settings_changed)
+
+
+## Splash (covers shader compilation of the first world), then the walkthrough on first launch.
+func _show_launch_sequence() -> void:
+	var splash: OVSplash = OVSplash.new().setup(load("res://assets/splash/emblem.png"), "FoldShift",
+		"Origami Puzzle Adventure", Game.palette, 1.0)
+	splash.theme = Game.theme
+	overlay_layer.add_child(splash)
+	splash.finished.connect(func() -> void:
+		if not bool(Game.data.seen_tutorial):
+			show_onboarding())
+
+
+func show_onboarding() -> void:
+	var pages: Array[Dictionary] = [
+		{"title": "Meet Kami", "body": "A little paper fox lost in a folded world. Help Kami reach the glowing lantern on every island.",
+			"art": FSOnboardArt.new().setup("kami")},
+		{"title": "Drag to fold", "body": "Press a colored strip of paper and drag it. It swings on its crease to make bridges, walls and ramps.",
+			"art": FSOnboardArt.new().setup("fold")},
+		{"title": "Tap to walk", "body": "Tap any tile Kami can reach and Kami walks there, even up a folded wall or under a flap.",
+			"art": FSOnboardArt.new().setup("walk")},
+		{"title": "Fold smart", "body": "Reach the lantern within par folds for 3 stars. Paper cranes hide on the back of flaps. Undo is always free.",
+			"art": FSOnboardArt.new().setup("goal")},
+	]
+	var ob: OVOnboarding = OVOnboarding.new().setup(pages, Game.palette, "Let's fold")
+	ob.theme = Game.theme
+	overlay_layer.add_child(ob)
+	ob.finished.connect(func() -> void:
+		Game.data.seen_tutorial = true
+		Game.save())
+
+
+func _on_settings_changed() -> void:
+	if world and world.rig:
+		world.rig.sensitivity = float(Game.data.settings.camera_speed)
+		world.reduce_motion = bool(Game.data.settings.reduce_motion)
 
 
 func _qa_capture(path: String, delay: float) -> void:
@@ -87,6 +125,7 @@ func _load_world(level_id: String, interactive: bool, saved: Dictionary = {}) ->
 	world.reduce_motion = bool(Game.data.settings.reduce_motion)
 	world_slot.add_child(world)
 	world.build(p, FSCatalog.chapter(L.chapter).preset, saved)
+	world.rig.sensitivity = float(Game.data.settings.camera_speed)
 	Game.audio.set_ambience(FSCatalog.chapter(L.chapter).mood)
 	return true
 
@@ -305,7 +344,11 @@ func play_level(id: String, saved: Dictionary = {}, undo_used: bool = false) -> 
 	_build_hud(L)
 	if saved.is_empty():
 		get_tree().create_timer(2.3).timeout.connect(func() -> void:
-			if is_instance_valid(world) and current_level == id:
+			if not is_instance_valid(world) or current_level != id:
+				return
+			if _wants_coach(id):
+				_start_coach()
+			elif bool(Game.data.settings.auto_hints):
 				show_toast(L.hint, 5.0))
 
 
@@ -328,7 +371,7 @@ func _build_hud(L: FSLevelData) -> void:
 	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_title = K.label("%d-%d  %s" % [L.chapter, L.index, L.title], "HudLabel")
 	_hud_folds = K.label("", "HudLabel")
-	_hud_folds.add_theme_font_size_override("font_size", int(K.s(26)))
+	_hud_folds.add_theme_font_size_override("font_size", int(K.s(32)))
 	tv.add_child(_hud_title)
 	tv.add_child(_hud_folds)
 	top.add_child(tv)
@@ -385,6 +428,35 @@ func _on_undo() -> void:
 		show_toast("Nothing to undo.")
 
 
+# ------------------------------------------------------------ tutorial coach marks (first level)
+
+
+func _wants_coach(id: String) -> bool:
+	return id == FSCatalog.LEVEL_IDS[0] and bool(Game.data.settings.coach) and not bool(Game.data.get("coach_done", false))
+
+
+func _start_coach() -> void:
+	if world == null or screen == null or world.puzzle.flap_count() == 0:
+		return
+	var coach: FSCoach = FSCoach.new()
+	screen.add_child(coach)
+	var w: FSWorld = world
+	var flap_t: int = w.flap_tile(0)
+	var goal_t: int = w.puzzle.tile_of[w.puzzle.level.goal]
+	var drag_dir: Vector2 = (w.tile_screen_position(goal_t) - w.tile_screen_position(flap_t)).normalized()
+	coach.show_step("Press the coral strip and drag it across the gap to fold a bridge.",
+		func() -> Vector2: return w.tile_screen_position(flap_t), drag_dir * K.s(240))
+	w.folded.connect(func(_f: String) -> void:
+		if is_instance_valid(coach):
+			coach.show_step("Nice fold! Now tap the far island to walk Kami to the lantern.",
+				func() -> Vector2: return w.tile_screen_position(goal_t)), CONNECT_ONE_SHOT)
+	w.won.connect(func() -> void:
+		Game.data.coach_done = true
+		Game.save()
+		if is_instance_valid(coach):
+			coach.queue_free(), CONNECT_ONE_SHOT)
+
+
 func _on_crane(i: int) -> void:
 	_update_hud()
 	Game.add_stat("cranes")
@@ -409,6 +481,16 @@ func capture_resume() -> void:
 
 
 func go_back() -> void:
+	for c in overlay_layer.get_children():
+		if c is OVOnboarding:
+			var ob: OVOnboarding = c
+			if ob.index > 0:
+				ob.show_page(ob.index - 1)
+			else:
+				ob._finish()
+			return
+		if c is OVSplash:
+			return
 	if _overlay:
 		if screen_name == "hud":
 			_close_overlay()
@@ -471,6 +553,10 @@ func show_pause() -> void:
 		_close_overlay()
 		world.input_enabled = true))
 	v.add_child(K.button("Restart level", restart_level, "CardButton"))
+	v.add_child(K.button("How to play", func() -> void:
+		_close_overlay()
+		show_onboarding()
+		world.input_enabled = true, "CardButton"))
 	v.add_child(K.button("Level select", func() -> void:
 		capture_resume()
 		Game.save()
@@ -540,20 +626,77 @@ func _settings_rows() -> VBoxContainer:
 # ------------------------------------------------------------ settings and achievements
 
 
-func show_settings() -> void:
+func show_settings(scroll_to: float = 0.0) -> void:
+	var S = OVSettingsKit
+	var st: Dictionary = Game.data.settings
 	var root: Control = Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_readability_gradient(0.96, 0.96))
+	root.add_child(_readability_gradient(0.97, 0.97))
 	var m: MarginContainer = K.screen_root()
 	root.add_child(m)
-	var v: VBoxContainer = K.vbox(26)
+	var v: VBoxContainer = K.vbox(20)
 	m.add_child(v)
 	v.add_child(_header("Settings", show_title))
-	var card: PanelContainer = K.card()
-	card.add_child(_settings_rows())
-	v.add_child(card)
-	var reset_btn: Button = K.button("Reset progress", func() -> void:
+	var sc: ScrollContainer = K.scroll()
+	v.add_child(sc)
+	var list: VBoxContainer = K.vbox(30)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(list)
+
+	var snd: VBoxContainer = S.section("Sound")
+	S.rows(snd).add_child(S.slider("Music", float(st.music), func(x: float) -> void: Game.set_setting("music", x)))
+	S.rows(snd).add_child(S.slider("Sound effects", float(st.sfx), func(x: float) -> void: Game.set_setting("sfx", x)))
+	S.rows(snd).add_child(S.switch("Vibration", "Short haptic taps when you fold, snap and collect.", bool(st.haptics),
+		func(on: bool) -> void: Game.set_setting("haptics", on)))
+	list.add_child(snd)
+
+	var gfx: VBoxContainer = S.section("Graphics and battery")
+	S.rows(gfx).add_child(S.choice("Graphics quality", "Auto keeps the game smooth by adjusting 3D sharpness to your phone.",
+		OVRenderQuality.MODE_NAMES, int(st.quality), func(i: int) -> void: Game.set_setting("quality", i)))
+	S.rows(gfx).add_child(S.switch("Battery saver", "Limit to 30 frames per second.", bool(st.battery_fps),
+		func(on: bool) -> void: Game.set_setting("battery_fps", on)))
+	S.rows(gfx).add_child(S.switch("Show FPS", "Frame rate and render time in the corner.", bool(st.show_fps),
+		func(on: bool) -> void: Game.set_setting("show_fps", on)))
+	list.add_child(gfx)
+
+	var acc: VBoxContainer = S.section("Accessibility")
+	S.rows(acc).add_child(S.choice("Text size", "", PackedStringArray(["Normal", "Large", "Extra large"]), int(st.text_size),
+		func(i: int) -> void:
+			Game.set_setting("text_size", i)
+			Game.rebuild_theme()
+			show_settings(sc.scroll_vertical)))
+	S.rows(acc).add_child(S.switch("Reduce motion", "Calmer camera intro and quicker folds.", bool(st.reduce_motion),
+		func(on: bool) -> void: Game.set_setting("reduce_motion", on)))
+	list.add_child(acc)
+
+	var play: VBoxContainer = S.section("Gameplay")
+	S.rows(play).add_child(S.slider("Camera sensitivity", float(st.camera_speed), func(x: float) -> void: Game.set_setting("camera_speed", x),
+		0.5, 2.0, 0.1, func(x: float) -> String: return "%.1f�" % x))
+	S.rows(play).add_child(S.switch("Level hints", "Show each level's hint when it starts.", bool(st.auto_hints),
+		func(on: bool) -> void: Game.set_setting("auto_hints", on)))
+	S.rows(play).add_child(S.switch("Tutorial tips", "Guided finger hints on the first level.", bool(st.coach),
+		func(on: bool) -> void: Game.set_setting("coach", on)))
+	list.add_child(play)
+
+	var help: VBoxContainer = S.section("Help")
+	S.rows(help).add_child(S.link("How to play", "Replay the four-step walkthrough.", show_onboarding))
+	S.rows(help).add_child(S.divider())
+	S.rows(help).add_child(S.link("Replay the first-level tutorial", "Guided hints come back on level 1-1.", func() -> void:
+		Game.data.coach_done = false
+		Game.set_setting("coach", true)
+		show_toast_global("Tutorial tips are back on level 1-1.")))
+	list.add_child(help)
+
+	list.add_child(S.support_section("FoldShift", Game.PACKAGE,
+		"Fold paper islands to guide Kami home in FoldShift, an origami puzzle game:", show_toast_global))
+
+	var data: VBoxContainer = S.section("Progress")
+	var stats: Dictionary = Game.data.stats
+	S.rows(data).add_child(S.info("%d stars � %d folds made � %d cranes found � %d/%d achievements" % [Game.total_stars(),
+		int(stats.folds), int(stats.cranes), Game.data.achievements.size(), Game.ACHIEVEMENTS.size()]))
+	S.rows(data).add_child(S.divider())
+	S.rows(data).add_child(S.link("Reset progress", "Erase stars, cranes and achievements. Settings are kept.", func() -> void:
 		var cv: VBoxContainer = K.vbox(20)
 		cv.add_child(K.label("Reset all progress?", "HeaderLabel"))
 		cv.add_child(K.label("Stars, cranes and achievements will be erased. Settings are kept.", "MutedLabel"))
@@ -562,19 +705,55 @@ func show_settings() -> void:
 			_close_overlay()
 			show_title()))
 		cv.add_child(K.button("Cancel", _close_overlay, "CardButton"))
-		_open_overlay(cv), "CardButton")
-	v.add_child(reset_btn)
-	v.add_child(K.expand_spacer())
-	var about: PanelContainer = K.card()
-	var av: VBoxContainer = K.vbox(8)
-	av.add_child(K.label("FoldShift %s" % ProjectSettings.get_setting("application/config/version"), "HeaderLabel"))
-	av.add_child(K.label("Made by F7 Developer with OrigamiVerse Core.", ""))
-	av.add_child(K.label("Privacy: FoldShift works fully offline and collects no personal data. Your progress is stored only on this device.", "MutedLabel"))
-	av.add_child(K.label("Font: Outfit (SIL Open Font License). Sounds and 3D models are generated by the app and its open-source pipeline.", "MutedLabel"))
-	about.add_child(av)
-	v.add_child(about)
-	_set_screen(root, "settings")
+		_open_overlay(cv), ""))
+	list.add_child(data)
 
+	list.add_child(S.about_section("FoldShift", "Origami Puzzle Adventure. 15 handcrafted levels, every one proven solvable.",
+		"FoldShift is built with Godot Engine (MIT) and OrigamiVerse Core.\n\nFont: Outfit by the Outfit Project Authors, SIL Open Font License 1.1.\n\nCrease data uses the FOLD file format by Erik Demaine, Jason Ku and Robert Lang.\n\nSounds are synthesized by the app. 3D models come from the project's own Blender pipeline.",
+		_show_text_page))
+	list.add_child(K.spacer(40))
+	_set_screen(root, "settings")
+	if scroll_to > 0.0:
+		await get_tree().process_frame
+		sc.scroll_vertical = int(scroll_to)
+
+
+## A plain scrolling text page (privacy policy, credits).
+func _show_text_page(title: String, text: String) -> void:
+	var cv: VBoxContainer = K.vbox(20)
+	cv.add_child(K.label(title, "HeaderLabel"))
+	var sc: ScrollContainer = K.scroll()
+	sc.custom_minimum_size.y = K.s(900)
+	var l: Label = K.label(text, "", HORIZONTAL_ALIGNMENT_LEFT)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(l)
+	cv.add_child(sc)
+	cv.add_child(K.button("Close", _close_overlay))
+	_open_overlay(cv)
+
+
+## Toast usable from any screen (the HUD toast only exists in levels).
+func show_toast_global(text: String) -> void:
+	if screen_name == "hud":
+		show_toast(text)
+		return
+	var p: PanelContainer = PanelContainer.new()
+	p.theme = Game.theme
+	p.add_theme_stylebox_override("panel", OVThemeFactory.box(Game.palette.ink, int(K.s(26)), Color.TRANSPARENT, 0, 0.25, Vector2(K.s(30), K.s(20))))
+	var l: Label = K.label(text, "")
+	l.add_theme_color_override("font_color", Color.WHITE)
+	p.add_child(l)
+	overlay_layer.add_child(p)
+	await get_tree().process_frame
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	p.position = Vector2((vs.x - p.size.x) * 0.5, vs.y - p.size.y - K.s(220))
+	p.modulate.a = 0.0
+	var tw: Tween = p.create_tween()
+	tw.tween_property(p, "modulate:a", 1.0, 0.2)
+	tw.tween_interval(2.2)
+	tw.tween_property(p, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(p.queue_free)
 
 func show_achievements() -> void:
 	var root: Control = Control.new()
@@ -585,9 +764,7 @@ func show_achievements() -> void:
 	var v: VBoxContainer = K.vbox(20)
 	m.add_child(v)
 	v.add_child(_header("Achievements  %d/%d" % [Game.data.achievements.size(), Game.ACHIEVEMENTS.size()], show_title))
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var scroll: ScrollContainer = K.scroll()
 	v.add_child(scroll)
 	var list: VBoxContainer = K.vbox(16)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL

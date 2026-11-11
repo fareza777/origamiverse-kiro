@@ -14,6 +14,8 @@ var max_distance: float = 40.0
 var min_pitch: float = 8.0
 var max_pitch: float = 88.0
 var fov: float = 38.0
+## Multiplier for drag orbit speed (settings: camera sensitivity).
+var sensitivity: float = 1.0
 
 
 func _ready() -> void:
@@ -55,8 +57,8 @@ func recenter() -> void:
 
 
 func orbit(rel: Vector2) -> void:
-	yaw.target -= rel.x * 0.25
-	pitch.target = clampf(pitch.target + rel.y * 0.2, min_pitch, max_pitch)
+	yaw.target -= rel.x * 0.25 * sensitivity
+	pitch.target = clampf(pitch.target + rel.y * 0.2 * sensitivity, min_pitch, max_pitch)
 
 
 func zoom(factor: float) -> void:

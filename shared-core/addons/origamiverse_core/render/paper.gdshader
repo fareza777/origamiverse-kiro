@@ -22,6 +22,9 @@ uniform float sheen : hint_range(0.0, 1.0) = 0.12;
 uniform float uv_scale = 1.0;
 uniform vec3 tint : source_color = vec3(1.0);
 uniform float emission_amount = 0.0;
+// Tileable value noise (OVPaperMesh.grain_texture). Sampling it replaces per-pixel hash noise, which cost
+// ~17 ms per frame at 1080p on an Adreno 610.
+uniform sampler2D grain_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 
 varying vec3 v_codes;
 varying vec2 v_bary;
@@ -29,23 +32,6 @@ varying vec2 v_bary;
 void vertex() {
 	v_codes = COLOR.rgb;
 	v_bary = UV2;
-}
-
-float hash12(vec2 p) {
-	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-	p3 += dot(p3, p3.yzx + 33.33);
-	return fract((p3.x + p3.y) * p3.z);
-}
-
-float vnoise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	float a = hash12(i);
-	float b = hash12(i + vec2(1.0, 0.0));
-	float c = hash12(i + vec2(0.0, 1.0));
-	float d = hash12(i + vec2(1.0, 1.0));
-	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
 float line_mask(float d, float w) {
@@ -56,8 +42,8 @@ void fragment() {
 	vec2 uv = UV * uv_scale;
 	vec3 base = FRONT_FACING ? front_color : back_color;
 	// Paper grain: two octaves of value noise plus long fibers (noise stretched along one axis).
-	float g = vnoise(uv * grain_scale) * 0.65 + vnoise(uv * grain_scale * 2.7 + 13.1) * 0.35;
-	float fib = vnoise(vec2(uv.x * grain_scale * 0.35, uv.y * grain_scale * 6.0) + 7.3);
+	float g = texture(grain_tex, uv * grain_scale * 0.0625).r * 0.65 + texture(grain_tex, uv * grain_scale * 0.17 + 0.37).r * 0.35;
+	float fib = texture(grain_tex, vec2(uv.x * grain_scale * 0.022, uv.y * grain_scale * 0.375) + 0.61).r;
 	fib = smoothstep(0.62, 0.95, fib);
 	base *= 1.0 + (g - 0.5) * grain_strength - fib * fiber_strength;
 

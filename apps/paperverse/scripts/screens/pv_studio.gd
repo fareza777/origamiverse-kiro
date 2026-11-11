@@ -93,12 +93,14 @@ func _build_ui() -> void:
 	svc.size_flags_stretch_ratio = 1.0
 	svc.mouse_filter = Control.MOUSE_FILTER_STOP
 	viewport = SubViewport.new()
-	viewport.msaa_3d = Viewport.MSAA_2X
 	viewport.own_world_3d = true
 	viewport.handle_input_locally = false
 	svc.add_child(viewport)
 	view = PVFoldView.new()
 	viewport.add_child(view)
+	# Dynamic resolution and shadows for the 3D view (the studio was GPU bound at native resolution).
+	Studio.quality.attach(viewport)
+	view.ready.connect(func() -> void: Studio.quality.register_light(view.sun), CONNECT_ONE_SHOT)
 	view.stats_changed.connect(func(t: String) -> void:
 		if _stats_label:
 			_stats_label.text = t)
@@ -128,9 +130,9 @@ func _build_ui() -> void:
 	_tab_host.custom_minimum_size.y = K.s(840)
 	v.add_child(_tab_host)
 	_tabs["crease"] = _build_crease_tab()
-	_tabs["fold"] = _build_fold_tab()
-	_tabs["animate"] = _build_animate_tab()
-	_tabs["paper"] = _build_paper_tab()
+	_tabs["fold"] = _scrolled(_build_fold_tab())
+	_tabs["animate"] = _scrolled(_build_animate_tab())
+	_tabs["paper"] = _scrolled(_build_paper_tab())
 	for k in _tabs.keys():
 		_tab_host.add_child(_tabs[k])
 
@@ -144,6 +146,14 @@ func _build_ui() -> void:
 	v.add_child(bar)
 
 
+## Tool tabs can be taller than the panel with large text; they scroll by dragging.
+func _scrolled(content: Control) -> ScrollContainer:
+	var sc: ScrollContainer = K.scroll()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(content)
+	return sc
+
+
 func _select_tab(id: String) -> void:
 	for k in _tabs.keys():
 		_tabs[k].visible = k == id
@@ -155,7 +165,7 @@ func _select_tab(id: String) -> void:
 func _chip(text: String, cb: Callable, group: ButtonGroup = null) -> Button:
 	var b: Button = K.button(text, cb, "ChipButton")
 	b.toggle_mode = true
-	b.custom_minimum_size.y = K.s(76)
+	b.custom_minimum_size.y = K.s(88)
 	if group:
 		b.button_group = group
 	return b
@@ -163,14 +173,16 @@ func _chip(text: String, cb: Callable, group: ButtonGroup = null) -> Button:
 
 func _build_crease_tab() -> Control:
 	var v: VBoxContainer = K.vbox(12)
-	var tools: HBoxContainer = K.hbox(8)
+	var tools: GridContainer = GridContainer.new()
+	tools.columns = 3
+	tools.add_theme_constant_override("h_separation", int(K.s(10)))
+	tools.add_theme_constant_override("v_separation", int(K.s(10)))
 	var group: ButtonGroup = ButtonGroup.new()
 	for pair in [[PVCreaseCanvas.Tool.MOUNTAIN, "Mountain"], [PVCreaseCanvas.Tool.VALLEY, "Valley"], [PVCreaseCanvas.Tool.CUT, "Cut"],
 			[PVCreaseCanvas.Tool.FLAT, "Guide"], [PVCreaseCanvas.Tool.ERASE, "Erase"], [PVCreaseCanvas.Tool.FLIP, "Flip"]]:
 		var t: int = pair[0]
 		var b: Button = _chip(pair[1], func() -> void: canvas.tool = t, group)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.add_theme_font_size_override("font_size", int(K.s(21)))
 		tools.add_child(b)
 		_tool_buttons[t] = b
 	v.add_child(tools)

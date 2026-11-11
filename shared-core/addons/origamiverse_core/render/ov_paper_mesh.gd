@@ -26,10 +26,37 @@ var _positions: PackedVector3Array = PackedVector3Array()
 var _normals: PackedVector3Array = PackedVector3Array()
 var _material: Material
 
+static var _grain: NoiseTexture2D
+
+
+## Drops shared static resources. Autoloads call this on exit so Godot does not report them as leaked.
+static func release_shared() -> void:
+	_grain = null
+
+
+## Shared tileable grain texture: 256 px value noise with 16 cells across, seamless, mipmapped.
+## Generated once by the engine (C++, threaded), so no asset file and no per-pixel hashing.
+static func grain_texture() -> NoiseTexture2D:
+	if _grain == null:
+		var n: FastNoiseLite = FastNoiseLite.new()
+		n.noise_type = FastNoiseLite.TYPE_VALUE_CUBIC
+		n.frequency = 16.0 / 256.0
+		n.fractal_type = FastNoiseLite.FRACTAL_NONE
+		n.seed = 7
+		_grain = NoiseTexture2D.new()
+		_grain.width = 256
+		_grain.height = 256
+		_grain.seamless = true
+		_grain.generate_mipmaps = true
+		_grain.normalize = true
+		_grain.noise = n
+	return _grain
+
 
 static func make_material(preset: Dictionary = {}) -> ShaderMaterial:
 	var m: ShaderMaterial = ShaderMaterial.new()
 	m.shader = SHADER
+	m.set_shader_parameter("grain_tex", grain_texture())
 	if not preset.is_empty():
 		OVPaperPresets.apply(m, preset)
 	return m

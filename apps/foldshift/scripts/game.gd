@@ -23,8 +23,13 @@ const ACHIEVEMENTS: Array[Dictionary] = [
 	{"id": "paper_master", "title": "Paper Master", "desc": "Make 100 folds in total."},
 ]
 
+const PACKAGE: String = "com.f7developer.foldshift"
+const TEXT_SCALES: PackedFloat32Array = [1.0, 1.15, 1.3]
+
 var data: Dictionary = {}
 var audio: OVPaperAudio
+var quality: OVRenderQuality
+var perf_overlay: OVPerfOverlay
 var theme: Theme
 var ui_scale: float = 1.0
 var palette: Dictionary = {
@@ -39,11 +44,14 @@ func _ready() -> void:
 	get_tree().set_auto_accept_quit(false)
 	audio = OVPaperAudio.new()
 	add_child(audio)
+	quality = OVRenderQuality.new()
+	add_child(quality)
+	quality.attach(get_viewport())
 	load_save()
-	apply_settings()
 	ui_scale = OVThemeFactory.ui_scale_for(get_viewport().get_visible_rect().size)
-	theme = OVThemeFactory.build(palette, ui_scale)
 	OVUIKit.scale = ui_scale
+	rebuild_theme()
+	apply_settings()
 	OVUIKit.on_click = func() -> void:
 		audio.play("ui")
 		audio.haptic(8, 0.25)
@@ -53,6 +61,7 @@ func _exit_tree() -> void:
 	# OVUIKit.on_click is a static var holding a lambda bound to this node. Left set, it outlives the node
 	# at shutdown and Godot crashes (0xC0000005) or hangs while freeing static vars.
 	OVUIKit.on_click = Callable()
+	OVPaperMesh.release_shared()
 
 
 func _notification(what: int) -> void:
@@ -76,7 +85,8 @@ func default_data() -> Dictionary:
 	return {
 		"levels": {},
 		"achievements": {},
-		"settings": {"music": 0.7, "sfx": 0.9, "haptics": true, "reduce_motion": false},
+		"settings": {"music": 0.7, "sfx": 0.9, "haptics": true, "reduce_motion": false, "quality": 0, "show_fps": false,
+			"text_size": 0, "auto_hints": true, "camera_speed": 1.0, "battery_fps": false, "coach": true},
 		"stats": {"folds": 0, "steps": 0, "cranes": 0},
 		"resume": {},
 		"seen_tutorial": false,
@@ -113,7 +123,26 @@ func apply_settings() -> void:
 	OVPaperAudio.set_bus_volume("Music", float(data.settings.music))
 	OVPaperAudio.set_bus_volume("SFX", float(data.settings.sfx))
 	audio.haptics_enabled = bool(data.settings.haptics)
+	if quality.mode != int(data.settings.quality):
+		quality.set_mode(int(data.settings.quality))
+	Engine.max_fps = 30 if bool(data.settings.battery_fps) else 0
+	_set_perf_overlay(bool(data.settings.show_fps))
 	settings_changed.emit()
+
+
+func rebuild_theme() -> void:
+	var ts: float = TEXT_SCALES[clampi(int(data.settings.get("text_size", 0)), 0, TEXT_SCALES.size() - 1)]
+	theme = OVThemeFactory.build(palette, ui_scale, ts)
+
+
+func _set_perf_overlay(on: bool) -> void:
+	if on and perf_overlay == null:
+		perf_overlay = OVPerfOverlay.new()
+		perf_overlay.quality = quality
+		add_child(perf_overlay)
+	elif not on and perf_overlay != null:
+		perf_overlay.queue_free()
+		perf_overlay = null
 
 
 func set_setting(key: String, value: Variant) -> void:

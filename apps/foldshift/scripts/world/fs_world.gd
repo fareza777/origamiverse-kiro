@@ -311,6 +311,23 @@ func _node_point(node: int) -> Dictionary:
 	return {"pos": frame.origin, "normal": frame.basis.y}
 
 
+## Screen position of a tile's live center (follows folds and the camera). Used by tutorial coach marks.
+func tile_screen_position(t: int) -> Vector2:
+	var c: PackedVector3Array = puzzle.tile_corners(t)
+	var center: Vector3 = (c[0] + c[1] + c[2] + c[3]) * 0.25
+	if rig == null or rig.camera == null or rig.camera.is_position_behind(center):
+		return Vector2(-10000, -10000)
+	return rig.camera.unproject_position(center)
+
+
+## First tile belonging to flap `fi`, or -1.
+func flap_tile(fi: int) -> int:
+	for t in puzzle.tile_count():
+		if puzzle.tile_flap[t] == fi:
+			return t
+	return -1
+
+
 func _refresh_highlight() -> void:
 	_highlight_mesh.clear_surfaces()
 	if mode == Mode.DONE or puzzle.nav == null or not input_enabled:
